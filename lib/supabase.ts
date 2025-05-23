@@ -11,95 +11,11 @@ export function getSupabaseClient() {
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error("Supabase URL or Anonymous Key is missing")
-    return createFallbackClient()
+    throw new Error("Supabase environment variables are not set")
   }
 
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  })
-
+  supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
   return supabaseClient
-}
-
-// Create a fallback client for development or when environment variables are missing
-function createFallbackClient() {
-  console.warn("Using fallback Supabase client. Data operations will be simulated.")
-
-  // Return a mock client that doesn't actually connect to Supabase
-  return {
-    from: (table: string) => ({
-      select: (columns?: string) => ({
-        order: (column: string, options?: any) => ({
-          then: (callback: Function) => callback({ data: [], error: null }),
-          eq: (column: string, value: any) => ({
-            then: (callback: Function) => callback({ data: [], error: null }),
-          }),
-          not: (column: string, operator: string, value: any) => ({
-            order: (column: string, options?: any) => ({
-              then: (callback: Function) => callback({ data: [], error: null }),
-            }),
-          }),
-        }),
-        eq: (column: string, value: any) => ({
-          then: (callback: Function) => callback({ data: [], error: null }),
-        }),
-        not: (column: string, operator: string, value: any) => ({
-          order: (column: string, options?: any) => ({
-            order: (column: string, options?: any) => ({
-              then: (callback: Function) => callback({ data: [], error: null }),
-            }),
-          }),
-        }),
-        then: (callback: Function) => callback({ data: [], error: null }),
-      }),
-      insert: (data: any) => ({
-        then: (callback: Function) => callback({ data: null, error: null }),
-      }),
-      update: (data: any) => ({
-        eq: (column: string, value: any) => ({
-          then: (callback: Function) => callback({ data: null, error: null }),
-        }),
-      }),
-      delete: () => ({
-        eq: (column: string, value: any) => ({
-          then: (callback: Function) => callback({ data: null, error: null }),
-        }),
-        in: (column: string, values: any[]) => ({
-          then: (callback: Function) => callback({ data: null, error: null }),
-        }),
-        then: (callback: Function) => callback({ data: null, error: null }),
-      }),
-      upsert: (data: any, options?: any) => ({
-        then: (callback: Function) => callback({ data: null, error: null }),
-      }),
-    }),
-    auth: {
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      signIn: () => Promise.resolve({ data: null, error: null }),
-      signOut: () => Promise.resolve({ error: null }),
-    },
-  } as any
-}
-
-// Server-side Supabase client (for API routes)
-export function getServerSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("Supabase URL or Service Role Key is missing")
-    return createFallbackClient()
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
 }
 
 // Tipos para as tabelas do Supabase
@@ -130,280 +46,369 @@ export type ProgramacaoTurno = {
   updated_at: string
 }
 
+export type VeiculoLogistica = {
+  id: number
+  item_id: string
+  frota: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+// Tipo para as métricas do sistema
+export type SystemMetric = {
+  id?: number
+  cpu_usage: number
+  memory_usage: number
+  network_status: number
+  system_status: number
+  security_level: number
+  timestamp?: string
+}
+
 // Funções auxiliares para interagir com o Supabase
 export async function fetchPendencias() {
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase.from("pendencias").select("*")
-
-    if (error) {
-      console.error("Error fetching pendencias:", error)
-      return []
-    }
-
-    return data || []
-  } catch (error) {
-    console.error("Exception fetching pendencias:", error)
-    return []
-  }
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase.from("pendencias").select("*")
+  if (error) throw error
+  return data || []
 }
 
 export async function savePendencias(category: string, items: string[]) {
-  try {
-    const supabase = getSupabaseClient()
+  const supabase = getSupabaseClient()
 
-    // First, delete all existing pendencias for this category
-    const { error: deleteError } = await supabase.from("pendencias").delete().eq("category", category)
+  // First, delete all existing pendencias for this category
+  const { error: deleteError } = await supabase.from("pendencias").delete().eq("category", category)
+  if (deleteError) throw deleteError
 
-    if (deleteError) {
-      console.error("Error deleting pendencias:", deleteError)
-      return false
+  // Then, insert the new ones
+  if (items.length > 0) {
+    const pendenciasToInsert = items
+      .filter((item) => item.trim() !== "")
+      .map((description) => ({
+        category,
+        description,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }))
+
+    if (pendenciasToInsert.length > 0) {
+      const { error: insertError } = await supabase.from("pendencias").insert(pendenciasToInsert)
+      if (insertError) throw insertError
     }
-
-    // Then, insert the new ones
-    if (items.length > 0) {
-      const pendenciasToInsert = items
-        .filter((item) => item.trim() !== "")
-        .map((description) => ({
-          category,
-          description,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }))
-
-      if (pendenciasToInsert.length > 0) {
-        const { error: insertError } = await supabase.from("pendencias").insert(pendenciasToInsert)
-
-        if (insertError) {
-          console.error("Error inserting pendencias:", insertError)
-          return false
-        }
-      }
-    }
-
-    return true
-  } catch (error) {
-    console.error("Exception saving pendencias:", error)
-    return false
   }
+
+  return true
+}
+
+// Função para liberar uma pendência
+export async function liberarPendencia(pendencia: {
+  category: string
+  description: string
+  released_by: string
+  equipment_id: string
+}) {
+  const supabase = getSupabaseClient()
+
+  // Insert into pendencias_liberadas
+  const { error: insertError } = await supabase.from("pendencias_liberadas").insert({
+    category: pendencia.category,
+    description: pendencia.description,
+    released_by: pendencia.released_by,
+    equipment_id: pendencia.equipment_id,
+    released_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  })
+  if (insertError) throw insertError
+
+  // Delete from pendencias
+  const { error: deleteError } = await supabase
+    .from("pendencias")
+    .delete()
+    .eq("category", pendencia.category)
+    .eq("description", pendencia.description)
+  if (deleteError) throw deleteError
+
+  return true
+}
+
+// Função para buscar pendências liberadas
+export async function fetchPendenciasLiberadas() {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("pendencias_liberadas")
+    .select("*")
+    .order("released_at", { ascending: false })
+  if (error) throw error
+  return data || []
 }
 
 export async function fetchProgramacaoTurno() {
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase.from("programacao_turno").select("*").order("item_id", { ascending: true })
-
-    if (error) {
-      console.error("Error fetching programacao_turno:", error)
-      return []
-    }
-
-    return data || []
-  } catch (error) {
-    console.error("Exception fetching programacao_turno:", error)
-    return []
-  }
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase.from("programacao_turno").select("*").order("item_id", { ascending: true })
+  if (error) throw error
+  return data || []
 }
 
 export async function saveProgramacaoTurno(items: { id: string; content: string }[]) {
-  try {
-    const supabase = getSupabaseClient()
+  const supabase = getSupabaseClient()
 
-    // Primeiro, buscar os IDs existentes para saber quais excluir
-    const { data: existingItems, error: fetchError } = await supabase.from("programacao_turno").select("item_id")
+  // Primeiro, buscar os IDs existentes para saber quais excluir
+  const { data: existingItems, error: fetchError } = await supabase.from("programacao_turno").select("item_id")
 
-    if (fetchError) {
-      console.error("Error fetching existing programacao_turno:", fetchError)
-      return false
-    }
-
-    // Obter os IDs dos itens existentes
-    const existingIds = existingItems?.map((item) => item.item_id) || []
-
-    // Obter os IDs dos novos itens
-    const newIds = items.map((item) => item.id)
-
-    // Encontrar IDs que existem no banco mas não estão nos novos itens (para excluir)
-    const idsToDelete = existingIds.filter((id) => !newIds.includes(id))
-
-    // Se houver IDs para excluir, excluí-los
-    if (idsToDelete.length > 0) {
-      const { error: deleteError } = await supabase.from("programacao_turno").delete().in("item_id", idsToDelete)
-
-      if (deleteError) {
-        console.error("Error deleting programacao_turno:", deleteError)
-        return false
-      }
-    }
-
-    // Para cada item, atualizar se existir ou inserir se não existir
-    for (const item of items) {
-      if (existingIds.includes(item.id)) {
-        // Atualizar item existente
-        const { error: updateError } = await supabase
-          .from("programacao_turno")
-          .update({ content: item.content })
-          .eq("item_id", item.id)
-
-        if (updateError) {
-          console.error(`Error updating programacao_turno item ${item.id}:`, updateError)
-          return false
-        }
-      } else {
-        // Inserir novo item
-        const { error: insertError } = await supabase
-          .from("programacao_turno")
-          .insert({ item_id: item.id, content: item.content })
-
-        if (insertError) {
-          console.error(`Error inserting programacao_turno item ${item.id}:`, insertError)
-          return false
-        }
-      }
-    }
-
-    return true
-  } catch (error) {
-    console.error("Exception saving programacao_turno:", error)
-    return false
+  if (fetchError) {
+    console.error("Error fetching existing programacao_turno:", fetchError)
+    throw fetchError
   }
-}
 
-// Simplified functions for other operations
-export async function fetchPendenciasLiberadas() {
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase
-      .from("pendencias_liberadas")
-      .select("*")
-      .order("released_at", { ascending: false })
+  // Obter os IDs dos itens existentes
+  const existingIds = existingItems?.map((item) => item.item_id) || []
 
-    if (error) {
-      console.error("Error fetching pendencias_liberadas:", error)
-      return []
+  // Obter os IDs dos novos itens
+  const newIds = items.map((item) => item.id)
+
+  // Encontrar IDs que existem no banco mas não estão nos novos itens (para excluir)
+  const idsToDelete = existingIds.filter((id) => !newIds.includes(id))
+
+  // Se houver IDs para excluir, excluí-los
+  if (idsToDelete.length > 0) {
+    const { error: deleteError } = await supabase.from("programacao_turno").delete().in("item_id", idsToDelete) // Usando cláusula WHERE com IN
+
+    if (deleteError) {
+      console.error("Error deleting programacao_turno:", deleteError)
+      throw deleteError
     }
+  }
 
-    return data || []
-  } catch (error) {
-    console.error("Exception fetching pendencias_liberadas:", error)
-    return []
+  // Para cada item, atualizar se existir ou inserir se não existir
+  for (const item of items) {
+    if (existingIds.includes(item.id)) {
+      // Atualizar item existente
+      const { error: updateError } = await supabase
+        .from("programacao_turno")
+        .update({ content: item.content })
+        .eq("item_id", item.id) // Usando cláusula WHERE
+
+      if (updateError) {
+        console.error(`Error updating programacao_turno item ${item.id}:`, updateError)
+        throw updateError
+      }
+    } else {
+      // Inserir novo item
+      const { error: insertError } = await supabase
+        .from("programacao_turno")
+        .insert({ item_id: item.id, content: item.content })
+
+      if (insertError) {
+        console.error(`Error inserting programacao_turno item ${item.id}:`, insertError)
+        throw insertError
+      }
+    }
   }
 }
 
 export async function fetchVeiculosLogistica() {
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase.from("veiculos_logistica").select("*")
-
-    if (error) {
-      console.error("Error fetching veiculos_logistica:", error)
-      return []
-    }
-
-    return data || []
-  } catch (error) {
-    console.error("Exception fetching veiculos_logistica:", error)
-    return []
-  }
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase.from("veiculos_logistica").select("*")
+  if (error) throw error
+  return data || []
 }
 
-export async function generatePendenciasReport() {
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase.from("pendencias").select("*").order("created_at", { ascending: false })
+export async function saveVeiculosLogistica(veiculos: any[]) {
+  const supabase = getSupabaseClient()
 
-    if (error) {
-      console.error("Error generating pendencias report:", error)
-      return []
-    }
+  // First, delete all existing veiculos
+  const { error: deleteError } = await supabase.from("veiculos_logistica").delete()
+  if (deleteError) throw deleteError
 
-    return data || []
-  } catch (error) {
-    console.error("Exception generating pendencias report:", error)
-    return []
+  // Then, insert the new ones
+  if (veiculos.length > 0) {
+    const veiculosToInsert = veiculos.map((veiculo) => ({
+      ...veiculo,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }))
+
+    const { error: insertError } = await supabase.from("veiculos_logistica").insert(veiculosToInsert)
+    if (insertError) throw insertError
   }
+
+  return true
+}
+
+// Report functions
+export async function generatePendenciasReport() {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase.from("pendencias").select("*").order("created_at", { ascending: false })
+  if (error) throw error
+  return data || []
 }
 
 export async function fetchSavedReports() {
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase.from("saved_reports").select("*").order("updatedAt", { ascending: false })
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase.from("saved_reports").select("*").order("updatedAt", { ascending: false })
+  if (error) throw error
+  return data || []
+}
 
-    if (error) {
-      console.error("Error fetching saved reports:", error)
-      return []
-    }
+export async function saveReport(report: any) {
+  const supabase = getSupabaseClient()
 
-    return data || []
-  } catch (error) {
-    console.error("Exception fetching saved reports:", error)
-    return []
+  // Process dates for storage
+  const processedReport = {
+    ...report,
+    filters: {
+      ...report.filters,
+      startDate:
+        typeof report.filters.startDate === "object"
+          ? report.filters.startDate.toISOString()
+          : report.filters.startDate,
+      endDate:
+        typeof report.filters.endDate === "object" ? report.filters.endDate.toISOString() : report.filters.endDate,
+    },
   }
+
+  const { error } = await supabase.from("saved_reports").upsert(processedReport, {
+    onConflict: "id",
+    ignoreDuplicates: false,
+  })
+  if (error) throw error
+  return true
+}
+
+export async function deleteReport(reportId: string) {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.from("saved_reports").delete().eq("id", reportId)
+  if (error) throw error
+  return true
+}
+
+export async function logReportExecution(reportExecution: any) {
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.from("report_executions").insert(reportExecution)
+  if (error) throw error
+  return true
 }
 
 export async function logEvent(event: string, details: any) {
-  try {
-    const supabase = getSupabaseClient()
-    const { error } = await supabase.from("logs").insert({
-      event,
-      details,
-      created_at: new Date().toISOString(),
-    })
-
-    if (error) {
-      console.error("Error logging event:", error)
-      return false
-    }
-
-    return true
-  } catch (error) {
-    console.error("Exception logging event:", error)
-    return false
-  }
+  const supabase = getSupabaseClient()
+  const { error } = await supabase.from("logs").insert({
+    event,
+    details,
+    created_at: new Date().toISOString(),
+  })
+  if (error) throw error
+  return true
 }
 
-// Reminder types and functions
+// Funções para métricas do sistema
+export async function fetchSystemMetrics(limit = 24) {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("system_metrics")
+    .select("*")
+    .order("timestamp", { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error("Error fetching system metrics:", error)
+    throw error
+  }
+
+  return data || []
+}
+
+export async function fetchLatestSystemMetric() {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("system_metrics")
+    .select("*")
+    .order("timestamp", { ascending: false })
+    .limit(1)
+    .single()
+
+  if (error) {
+    console.error("Error fetching latest system metric:", error)
+    // Se não houver métricas, retorne valores padrão em vez de lançar um erro
+    if (error.code === "PGRST116") {
+      return {
+        cpu_usage: 42,
+        memory_usage: 68,
+        network_status: 92,
+        system_status: 85,
+        security_level: 75,
+        timestamp: new Date().toISOString(),
+      }
+    }
+    throw error
+  }
+
+  return data
+}
+
+export async function saveSystemMetric(metric: SystemMetric) {
+  const supabase = getSupabaseClient()
+
+  const metricToSave = {
+    ...metric,
+    timestamp: new Date().toISOString(),
+  }
+
+  const { error } = await supabase.from("system_metrics").insert(metricToSave)
+
+  if (error) {
+    console.error("Error saving system metric:", error)
+    throw error
+  }
+
+  return true
+}
+
+// Adicionar os tipos e funções para o sistema de lembretes após as funções existentes
+
+// Tipos para o sistema de lembretes
 export type ReminderPriority = "baixa" | "media" | "alta" | "urgente"
 export type ReminderStatus = "pendente" | "concluido" | "atrasado" | "em-andamento" | "arquivado"
 
-// Interface for mapping between camelCase (code) and snake_case (database)
+// Interface para mapear entre camelCase (código) e snake_case (banco de dados)
 interface ReminderDB {
   id: string
   title: string
   description: string
-  due_date: string
-  due_time: string
+  due_date: string // Nome no banco de dados
+  due_time: string // Nome no banco de dados
   priority: ReminderPriority
   status: ReminderStatus
   category: string
-  assigned_to?: string
-  created_at: string
-  updated_at: string
-  completed_at?: string
+  assigned_to?: string // Nome no banco de dados
+  created_at: string // Nome no banco de dados
+  updated_at: string // Nome no banco de dados
+  completed_at?: string // Nome no banco de dados
   notified?: boolean
-  one_hour_notified?: boolean
-  user_id?: string
+  one_hour_notified?: boolean // Nome no banco de dados
+  user_id?: string // Nome no banco de dados
 }
 
 export type Reminder = {
   id: string
   title: string
   description: string
-  dueDate: string
-  dueTime: string
+  dueDate: string // Nome no código
+  dueTime: string // Nome no código
   priority: ReminderPriority
   status: ReminderStatus
   category: string
-  assignedTo?: string
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
+  assignedTo?: string // Nome no código
+  createdAt: string // Nome no código
+  updatedAt: string // Nome no código
+  completedAt?: string // Nome no código
   notified?: boolean
-  oneHourNotified?: boolean
-  userId?: string
+  oneHourNotified?: boolean // Nome no código
+  userId?: string // Nome no código
 }
 
-// Conversion functions
+// Função para converter de snake_case (DB) para camelCase (código)
 function dbToReminderModel(dbReminder: ReminderDB): Reminder {
   return {
     id: dbReminder.id,
@@ -424,6 +429,7 @@ function dbToReminderModel(dbReminder: ReminderDB): Reminder {
   }
 }
 
+// Função para converter de camelCase (código) para snake_case (DB)
 function reminderModelToDB(reminder: Reminder): ReminderDB {
   return {
     id: reminder.id,
@@ -444,324 +450,148 @@ function reminderModelToDB(reminder: Reminder): ReminderDB {
   }
 }
 
-// Reminder functions
+// Funções para interagir com os lembretes no Supabase
 export async function fetchReminders() {
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase
-      .from("reminders")
-      .select("*")
-      .not("status", "eq", "arquivado")
-      .order("due_date", { ascending: true })
-      .order("due_time", { ascending: true })
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("reminders")
+    .select("*")
+    .not("status", "eq", "arquivado")
+    .order("due_date", { ascending: true })
+    .order("due_time", { ascending: true })
 
-    if (error) {
-      console.error("Error fetching reminders:", error)
-      return []
-    }
-
-    return (data || []).map(dbToReminderModel)
-  } catch (error) {
-    console.error("Exception fetching reminders:", error)
-    return []
+  if (error) {
+    console.error("Erro ao buscar lembretes:", error)
+    throw error
   }
+
+  // Converter de snake_case para camelCase
+  return (data || []).map(dbToReminderModel)
 }
 
 export async function fetchArchivedReminders() {
-  try {
-    const supabase = getSupabaseClient()
-    const { data, error } = await supabase
-      .from("reminders")
-      .select("*")
-      .eq("status", "arquivado")
-      .order("completed_at", { ascending: false })
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("reminders")
+    .select("*")
+    .eq("status", "arquivado")
+    .order("completed_at", { ascending: false })
 
-    if (error) {
-      console.error("Error fetching archived reminders:", error)
-      return []
-    }
-
-    return (data || []).map(dbToReminderModel)
-  } catch (error) {
-    console.error("Exception fetching archived reminders:", error)
-    return []
+  if (error) {
+    console.error("Erro ao buscar lembretes arquivados:", error)
+    throw error
   }
+
+  // Converter de snake_case para camelCase
+  return (data || []).map(dbToReminderModel)
 }
 
 export async function saveReminder(reminder: Reminder) {
-  try {
-    const supabase = getSupabaseClient()
+  const supabase = getSupabaseClient()
 
-    const reminderToSave = reminderModelToDB({
-      ...reminder,
-      updatedAt: new Date().toISOString(),
-    })
+  // Converter de camelCase para snake_case
+  const reminderToSave = reminderModelToDB({
+    ...reminder,
+    updatedAt: new Date().toISOString(),
+  })
 
-    if (!reminder.id || reminder.id === "") {
-      reminderToSave.id = crypto.randomUUID()
-      reminderToSave.created_at = new Date().toISOString()
+  // Se o ID for uma string vazia ou não existir, é um novo lembrete
+  if (!reminder.id || reminder.id === "") {
+    // Gerar um ID único para novos lembretes
+    reminderToSave.id = crypto.randomUUID()
+    reminderToSave.created_at = new Date().toISOString()
 
-      const { error } = await supabase.from("reminders").insert(reminderToSave)
+    const { error } = await supabase.from("reminders").insert(reminderToSave)
 
-      if (error) {
-        console.error("Error creating reminder:", error)
-        throw error
-      }
-
-      return dbToReminderModel(reminderToSave)
-    } else {
-      const { error } = await supabase.from("reminders").update(reminderToSave).eq("id", reminder.id)
-
-      if (error) {
-        console.error("Error updating reminder:", error)
-        throw error
-      }
-
-      return dbToReminderModel(reminderToSave)
+    if (error) {
+      console.error("Erro ao criar lembrete:", error)
+      throw error
     }
-  } catch (error) {
-    console.error("Exception saving reminder:", error)
-    throw error
+
+    return dbToReminderModel(reminderToSave)
+  } else {
+    // Atualizar lembrete existente
+    const { error } = await supabase.from("reminders").update(reminderToSave).eq("id", reminder.id)
+
+    if (error) {
+      console.error("Erro ao atualizar lembrete:", error)
+      throw error
+    }
+
+    return dbToReminderModel(reminderToSave)
   }
 }
 
 export async function saveReminders(reminders: Reminder[]) {
-  try {
-    const supabase = getSupabaseClient()
+  const supabase = getSupabaseClient()
 
-    const remindersToSave = reminders.map((reminder) =>
-      reminderModelToDB({
-        ...reminder,
-        updatedAt: new Date().toISOString(),
-      }),
-    )
+  // Converter de camelCase para snake_case
+  const remindersToSave = reminders.map((reminder) =>
+    reminderModelToDB({
+      ...reminder,
+      updatedAt: new Date().toISOString(),
+    }),
+  )
 
-    const { error } = await supabase.from("reminders").upsert(remindersToSave, { onConflict: "id" })
+  // Usar upsert para inserir ou atualizar em massa
+  const { error } = await supabase.from("reminders").upsert(remindersToSave, { onConflict: "id" })
 
-    if (error) {
-      console.error("Error saving reminders in bulk:", error)
-      throw error
-    }
-
-    return reminders
-  } catch (error) {
-    console.error("Exception saving reminders in bulk:", error)
+  if (error) {
+    console.error("Erro ao salvar lembretes em massa:", error)
     throw error
   }
+
+  return reminders
 }
 
 export async function deleteReminder(id: string) {
-  try {
-    const supabase = getSupabaseClient()
+  const supabase = getSupabaseClient()
 
-    const { error } = await supabase.from("reminders").delete().eq("id", id)
+  const { error } = await supabase.from("reminders").delete().eq("id", id)
 
-    if (error) {
-      console.error("Error deleting reminder:", error)
-      throw error
-    }
-
-    return true
-  } catch (error) {
-    console.error("Exception deleting reminder:", error)
+  if (error) {
+    console.error("Erro ao excluir lembrete:", error)
     throw error
   }
+
+  return true
 }
 
 export async function archiveReminder(reminder: Reminder) {
-  try {
-    const supabase = getSupabaseClient()
+  const supabase = getSupabaseClient()
 
-    const reminderToArchive = reminderModelToDB({
-      ...reminder,
-      status: "arquivado" as ReminderStatus,
-      completedAt: reminder.completedAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    })
+  const reminderToArchive = reminderModelToDB({
+    ...reminder,
+    status: "arquivado" as ReminderStatus,
+    completedAt: reminder.completedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  })
 
-    const { error } = await supabase.from("reminders").update(reminderToArchive).eq("id", reminder.id)
+  const { error } = await supabase.from("reminders").update(reminderToArchive).eq("id", reminder.id)
 
-    if (error) {
-      console.error("Error archiving reminder:", error)
-      throw error
-    }
-
-    return dbToReminderModel(reminderToArchive)
-  } catch (error) {
-    console.error("Exception archiving reminder:", error)
+  if (error) {
+    console.error("Erro ao arquivar lembrete:", error)
     throw error
   }
+
+  return dbToReminderModel(reminderToArchive)
 }
 
 export async function restoreReminder(id: string) {
-  try {
-    const supabase = getSupabaseClient()
+  const supabase = getSupabaseClient()
 
-    const { error } = await supabase
-      .from("reminders")
-      .update({
-        status: "pendente",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-
-    if (error) {
-      console.error("Error restoring reminder:", error)
-      throw error
-    }
-
-    return true
-  } catch (error) {
-    console.error("Exception restoring reminder:", error)
-    throw error
-  }
-}
-
-// Additional missing functions
-export async function liberarPendencia(pendencia: {
-  category: string
-  description: string
-  released_by: string
-  equipment_id: string
-}) {
-  try {
-    const supabase = getSupabaseClient()
-
-    // Insert into pendencias_liberadas
-    const { error: insertError } = await supabase.from("pendencias_liberadas").insert({
-      category: pendencia.category,
-      description: pendencia.description,
-      released_by: pendencia.released_by,
-      equipment_id: pendencia.equipment_id,
-      released_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
+  const { error } = await supabase
+    .from("reminders")
+    .update({
+      status: "pendente",
       updated_at: new Date().toISOString(),
     })
+    .eq("id", id)
 
-    if (insertError) {
-      console.error("Error inserting liberated pendencia:", insertError)
-      throw insertError
-    }
-
-    // Delete from pendencias
-    const { error: deleteError } = await supabase
-      .from("pendencias")
-      .delete()
-      .eq("category", pendencia.category)
-      .eq("description", pendencia.description)
-
-    if (deleteError) {
-      console.error("Error deleting pendencia:", deleteError)
-      throw deleteError
-    }
-
-    return true
-  } catch (error) {
-    console.error("Exception liberating pendencia:", error)
+  if (error) {
+    console.error("Erro ao restaurar lembrete:", error)
     throw error
   }
-}
 
-export async function saveVeiculosLogistica(veiculos: any[]) {
-  try {
-    const supabase = getSupabaseClient()
-
-    // First, delete all existing veiculos
-    const { error: deleteError } = await supabase.from("veiculos_logistica").delete()
-
-    if (deleteError) {
-      console.error("Error deleting existing veiculos:", deleteError)
-      return false
-    }
-
-    // Then, insert the new ones
-    if (veiculos.length > 0) {
-      const veiculosToInsert = veiculos.map((veiculo) => ({
-        ...veiculo,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }))
-
-      const { error: insertError } = await supabase.from("veiculos_logistica").insert(veiculosToInsert)
-
-      if (insertError) {
-        console.error("Error inserting veiculos:", insertError)
-        return false
-      }
-    }
-
-    return true
-  } catch (error) {
-    console.error("Exception saving veiculos logistica:", error)
-    return false
-  }
-}
-
-export async function saveReport(report: any) {
-  try {
-    const supabase = getSupabaseClient()
-
-    // Process dates for storage
-    const processedReport = {
-      ...report,
-      filters: {
-        ...report.filters,
-        startDate:
-          typeof report.filters.startDate === "object"
-            ? report.filters.startDate.toISOString()
-            : report.filters.startDate,
-        endDate:
-          typeof report.filters.endDate === "object" ? report.filters.endDate.toISOString() : report.filters.endDate,
-      },
-    }
-
-    const { error } = await supabase.from("saved_reports").upsert(processedReport, {
-      onConflict: "id",
-      ignoreDuplicates: false,
-    })
-
-    if (error) {
-      console.error("Error saving report:", error)
-      throw error
-    }
-
-    return true
-  } catch (error) {
-    console.error("Exception saving report:", error)
-    throw error
-  }
-}
-
-export async function deleteReport(reportId: string) {
-  try {
-    const supabase = getSupabaseClient()
-    const { error } = await supabase.from("saved_reports").delete().eq("id", reportId)
-
-    if (error) {
-      console.error("Error deleting report:", error)
-      throw error
-    }
-
-    return true
-  } catch (error) {
-    console.error("Exception deleting report:", error)
-    throw error
-  }
-}
-
-export async function logReportExecution(reportExecution: any) {
-  try {
-    const supabase = getSupabaseClient()
-    const { error } = await supabase.from("report_executions").insert(reportExecution)
-
-    if (error) {
-      console.error("Error logging report execution:", error)
-      throw error
-    }
-
-    return true
-  } catch (error) {
-    console.error("Exception logging report execution:", error)
-    throw error
-  }
+  return true
 }

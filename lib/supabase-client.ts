@@ -1,86 +1,78 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { supabaseConfig } from "@/config/environment"
+import type { Database } from "@/types/supabase"
 
-// Singleton pattern for Supabase client
-let supabaseClient: ReturnType<typeof createClient> | null = null
+// Singleton pattern para o cliente Supabase
+let supabaseInstance: SupabaseClient<Database> | null = null
 
-export function getSupabaseClient() {
-  if (supabaseClient) return supabaseClient
+/**
+ * Retorna uma instância do cliente Supabase
+ * Usa o padrão singleton para evitar múltiplas instâncias
+ */
+export function getSupabaseClient(): SupabaseClient<Database> {
+  if (supabaseInstance) return supabaseInstance
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  const { url, anonKey } = supabaseConfig
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("Supabase URL or Anonymous Key is missing")
-    return createFallbackClient()
+  if (!url || !anonKey) {
+    throw new Error("Supabase URL or Anonymous Key is missing")
   }
 
-  supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-    },
-  })
-
-  return supabaseClient
+  supabaseInstance = createClient<Database>(url, anonKey)
+  return supabaseInstance
 }
 
-// Create a fallback client for development or when environment variables are missing
-function createFallbackClient() {
-  console.warn("Using fallback Supabase client. Data operations will be simulated.")
+/**
+ * Retorna uma instância do cliente Supabase com a chave de serviço
+ * Usar apenas no servidor para operações administrativas
+ */
+export function getSupabaseAdminClient(): SupabaseClient<Database> {
+  const { url, serviceRoleKey } = supabaseConfig
 
-  // Return a mock client that doesn't actually connect to Supabase
-  return {
-    from: (table: string) => ({
-      select: () => ({
-        order: () => ({
-          then: (callback: Function) => callback({ data: [], error: null }),
-        }),
-        eq: () => ({
-          then: (callback: Function) => callback({ data: [], error: null }),
-        }),
-      }),
-      insert: () => ({
-        then: (callback: Function) => callback({ data: null, error: null }),
-      }),
-      update: () => ({
-        eq: () => ({
-          then: (callback: Function) => callback({ data: null, error: null }),
-        }),
-      }),
-      delete: () => ({
-        eq: () => ({
-          then: (callback: Function) => callback({ data: null, error: null }),
-        }),
-        in: () => ({
-          then: (callback: Function) => callback({ data: null, error: null }),
-        }),
-      }),
-      upsert: () => ({
-        then: (callback: Function) => callback({ data: null, error: null }),
-      }),
-    }),
-    auth: {
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      signIn: () => Promise.resolve({ data: null, error: null }),
-      signOut: () => Promise.resolve({ error: null }),
-    },
-  } as any
-}
-
-// Server-side Supabase client (for API routes)
-export function getServerSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    console.error("Supabase URL or Service Role Key is missing")
-    return createFallbackClient()
+  if (!url || !serviceRoleKey) {
+    throw new Error("Supabase URL or Service Role Key is missing")
   }
 
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
+  return createClient<Database>(url, serviceRoleKey)
+}
+
+/**
+ * Cria um cliente Supabase com um token de acesso específico
+ * Útil para operações autenticadas no lado do cliente
+ */
+export function createSupabaseClientWithToken(accessToken: string): SupabaseClient<Database> {
+  const { url, anonKey } = supabaseConfig
+
+  if (!url || !anonKey) {
+    throw new Error("Supabase URL or Anonymous Key is missing")
+  }
+
+  return createClient<Database>(url, anonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     },
   })
+}
+
+/**
+ * Verifica a conexão com o Supabase
+ * Útil para testes de conectividade
+ */
+export async function checkSupabaseConnection(): Promise<boolean> {
+  try {
+    const supabase = getSupabaseClient()
+    const { data, error } = await supabase.from("health_check").select("*").limit(1)
+
+    if (error) {
+      console.error("Supabase connection error:", error)
+      return false
+    }
+
+    return true
+  } catch (err) {
+    console.error("Failed to check Supabase connection:", err)
+    return false
+  }
 }
