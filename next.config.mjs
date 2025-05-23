@@ -8,10 +8,10 @@ const nextConfig = {
       'brancoperesagro.com.br',
       'supabase.co',
       'avatars.githubusercontent.com',
+      'hebbkx1anhila5yf.public.blob.vercel-storage.com',
     ],
-    unoptimized: true,
+    unoptimized: process.env.NODE_ENV === 'development',
   },
-  output: 'standalone',
   experimental: {
     serverComponentsExternalPackages: ['sharp', 'canvas'],
   },
@@ -41,10 +41,6 @@ const nextConfig = {
           {
             key: 'Referrer-Policy',
             value: 'strict-origin-when-cross-origin',
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()',
           },
         ],
       },
