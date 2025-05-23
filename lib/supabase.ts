@@ -290,3 +290,234 @@ export async function logEvent(event: string, details: any) {
   if (error) throw error
   return true
 }
+
+// Adicionar os tipos e funções para o sistema de lembretes após as funções existentes
+
+// Tipos para o sistema de lembretes
+export type ReminderPriority = "baixa" | "media" | "alta" | "urgente"
+export type ReminderStatus = "pendente" | "concluido" | "atrasado" | "em-andamento" | "arquivado"
+
+// Interface para mapear entre camelCase (código) e snake_case (banco de dados)
+interface ReminderDB {
+  id: string
+  title: string
+  description: string
+  due_date: string // Nome no banco de dados
+  due_time: string // Nome no banco de dados
+  priority: ReminderPriority
+  status: ReminderStatus
+  category: string
+  assigned_to?: string // Nome no banco de dados
+  created_at: string // Nome no banco de dados
+  updated_at: string // Nome no banco de dados
+  completed_at?: string // Nome no banco de dados
+  notified?: boolean
+  one_hour_notified?: boolean // Nome no banco de dados
+  user_id?: string // Nome no banco de dados
+}
+
+export type Reminder = {
+  id: string
+  title: string
+  description: string
+  dueDate: string // Nome no código
+  dueTime: string // Nome no código
+  priority: ReminderPriority
+  status: ReminderStatus
+  category: string
+  assignedTo?: string // Nome no código
+  createdAt: string // Nome no código
+  updatedAt: string // Nome no código
+  completedAt?: string // Nome no código
+  notified?: boolean
+  oneHourNotified?: boolean // Nome no código
+  userId?: string // Nome no código
+}
+
+// Função para converter de snake_case (DB) para camelCase (código)
+function dbToReminderModel(dbReminder: ReminderDB): Reminder {
+  return {
+    id: dbReminder.id,
+    title: dbReminder.title,
+    description: dbReminder.description,
+    dueDate: dbReminder.due_date,
+    dueTime: dbReminder.due_time,
+    priority: dbReminder.priority as ReminderPriority,
+    status: dbReminder.status as ReminderStatus,
+    category: dbReminder.category,
+    assignedTo: dbReminder.assigned_to,
+    createdAt: dbReminder.created_at,
+    updatedAt: dbReminder.updated_at,
+    completedAt: dbReminder.completed_at,
+    notified: dbReminder.notified,
+    oneHourNotified: dbReminder.one_hour_notified,
+    userId: dbReminder.user_id,
+  }
+}
+
+// Função para converter de camelCase (código) para snake_case (DB)
+function reminderModelToDB(reminder: Reminder): ReminderDB {
+  return {
+    id: reminder.id,
+    title: reminder.title,
+    description: reminder.description,
+    due_date: reminder.dueDate,
+    due_time: reminder.dueTime,
+    priority: reminder.priority,
+    status: reminder.status,
+    category: reminder.category,
+    assigned_to: reminder.assignedTo,
+    created_at: reminder.createdAt,
+    updated_at: reminder.updatedAt,
+    completed_at: reminder.completedAt,
+    notified: reminder.notified,
+    one_hour_notified: reminder.oneHourNotified,
+    user_id: reminder.userId,
+  }
+}
+
+// Funções para interagir com os lembretes no Supabase
+export async function fetchReminders() {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("reminders")
+    .select("*")
+    .not("status", "eq", "arquivado")
+    .order("due_date", { ascending: true })
+    .order("due_time", { ascending: true })
+
+  if (error) {
+    console.error("Erro ao buscar lembretes:", error)
+    throw error
+  }
+
+  // Converter de snake_case para camelCase
+  return (data || []).map(dbToReminderModel)
+}
+
+export async function fetchArchivedReminders() {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("reminders")
+    .select("*")
+    .eq("status", "arquivado")
+    .order("completed_at", { ascending: false })
+
+  if (error) {
+    console.error("Erro ao buscar lembretes arquivados:", error)
+    throw error
+  }
+
+  // Converter de snake_case para camelCase
+  return (data || []).map(dbToReminderModel)
+}
+
+export async function saveReminder(reminder: Reminder) {
+  const supabase = getSupabaseClient()
+
+  // Converter de camelCase para snake_case
+  const reminderToSave = reminderModelToDB({
+    ...reminder,
+    updatedAt: new Date().toISOString(),
+  })
+
+  // Se o ID for uma string vazia ou não existir, é um novo lembrete
+  if (!reminder.id || reminder.id === "") {
+    // Gerar um ID único para novos lembretes
+    reminderToSave.id = crypto.randomUUID()
+    reminderToSave.created_at = new Date().toISOString()
+
+    const { error } = await supabase.from("reminders").insert(reminderToSave)
+
+    if (error) {
+      console.error("Erro ao criar lembrete:", error)
+      throw error
+    }
+
+    return dbToReminderModel(reminderToSave)
+  } else {
+    // Atualizar lembrete existente
+    const { error } = await supabase.from("reminders").update(reminderToSave).eq("id", reminder.id)
+
+    if (error) {
+      console.error("Erro ao atualizar lembrete:", error)
+      throw error
+    }
+
+    return dbToReminderModel(reminderToSave)
+  }
+}
+
+export async function saveReminders(reminders: Reminder[]) {
+  const supabase = getSupabaseClient()
+
+  // Converter de camelCase para snake_case
+  const remindersToSave = reminders.map((reminder) =>
+    reminderModelToDB({
+      ...reminder,
+      updatedAt: new Date().toISOString(),
+    }),
+  )
+
+  // Usar upsert para inserir ou atualizar em massa
+  const { error } = await supabase.from("reminders").upsert(remindersToSave, { onConflict: "id" })
+
+  if (error) {
+    console.error("Erro ao salvar lembretes em massa:", error)
+    throw error
+  }
+
+  return reminders
+}
+
+export async function deleteReminder(id: string) {
+  const supabase = getSupabaseClient()
+
+  const { error } = await supabase.from("reminders").delete().eq("id", id)
+
+  if (error) {
+    console.error("Erro ao excluir lembrete:", error)
+    throw error
+  }
+
+  return true
+}
+
+export async function archiveReminder(reminder: Reminder) {
+  const supabase = getSupabaseClient()
+
+  const reminderToArchive = reminderModelToDB({
+    ...reminder,
+    status: "arquivado" as ReminderStatus,
+    completedAt: reminder.completedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  })
+
+  const { error } = await supabase.from("reminders").update(reminderToArchive).eq("id", reminder.id)
+
+  if (error) {
+    console.error("Erro ao arquivar lembrete:", error)
+    throw error
+  }
+
+  return dbToReminderModel(reminderToArchive)
+}
+
+export async function restoreReminder(id: string) {
+  const supabase = getSupabaseClient()
+
+  const { error } = await supabase
+    .from("reminders")
+    .update({
+      status: "pendente",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+
+  if (error) {
+    console.error("Erro ao restaurar lembrete:", error)
+    throw error
+  }
+
+  return true
+}

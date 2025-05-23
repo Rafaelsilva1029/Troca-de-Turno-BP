@@ -2,8 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { format, addDays, isAfter, isBefore, parseISO } from "date-fns"
+import { useState, useEffect, useCallback } from "react"
+import { format, addDays, isAfter, isBefore, parseISO, differenceInMinutes } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
   Bell,
@@ -19,6 +19,14 @@ import {
   AlertCircle,
   Info,
   CheckCircle2,
+  Volume2,
+  VolumeX,
+  Download,
+  Save,
+  Archive,
+  RotateCcw,
+  Loader2,
+  History,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,98 +44,269 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
-type ReminderPriority = "baixa" | "media" | "alta" | "urgente"
-type ReminderStatus = "pendente" | "concluido" | "atrasado" | "em-andamento"
-
-interface Reminder {
-  id: string
-  title: string
-  description: string
-  dueDate: string
-  dueTime: string
-  priority: ReminderPriority
-  status: ReminderStatus
-  category: string
-  assignedTo?: string
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
-}
-
-const initialReminders: Reminder[] = [
-  {
-    id: "1",
-    title: "Manutenção preventiva caminhão L-001",
-    description: "Realizar troca de óleo e filtros no caminhão L-001",
-    dueDate: format(addDays(new Date(), 2), "yyyy-MM-dd"),
-    dueTime: "08:00",
-    priority: "alta",
-    status: "pendente",
-    category: "manutenção",
-    assignedTo: "Carlos Silva",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    title: "Verificar freios caminhão pipa P-003",
-    description: "Verificar sistema de freios que está apresentando falhas",
-    dueDate: format(addDays(new Date(), -1), "yyyy-MM-dd"),
-    dueTime: "14:30",
-    priority: "urgente",
-    status: "atrasado",
-    category: "manutenção",
-    assignedTo: "Roberto Almeida",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "3",
-    title: "Calibrar pneus da frota de veículos leves",
-    description: "Calibrar todos os pneus dos veículos leves conforme especificação",
-    dueDate: format(addDays(new Date(), 1), "yyyy-MM-dd"),
-    dueTime: "10:00",
-    priority: "media",
-    status: "em-andamento",
-    category: "manutenção",
-    assignedTo: "Paulo Mendes",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "4",
-    title: "Reunião com equipe de logística",
-    description: "Discutir planejamento semanal de rotas",
-    dueDate: format(new Date(), "yyyy-MM-dd"),
-    dueTime: "15:00",
-    priority: "media",
-    status: "pendente",
-    category: "reunião",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "5",
-    title: "Inspeção de segurança caminhões munck",
-    description: "Realizar inspeção de segurança em todos os caminhões munck",
-    dueDate: format(addDays(new Date(), 3), "yyyy-MM-dd"),
-    dueTime: "09:00",
-    priority: "alta",
-    status: "pendente",
-    category: "segurança",
-    assignedTo: "André Santos",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-]
+import { useNotifications } from "./notification-manager"
+import { useAudio } from "@/lib/audio-service"
+import { Switch } from "@/components/ui/switch"
+import {
+  type Reminder,
+  type ReminderPriority,
+  type ReminderStatus,
+  fetchReminders,
+  saveReminder,
+  deleteReminder,
+  archiveReminder,
+  fetchArchivedReminders,
+  restoreReminder,
+  saveReminders,
+} from "@/lib/supabase"
 
 export function ReminderSystem() {
-  const [reminders, setReminders] = useState<Reminder[]>(initialReminders)
+  const [reminders, setReminders] = useState<Reminder[]>([])
+  const [archivedReminders, setArchivedReminders] = useState<Reminder[]>([])
   const [activeTab, setActiveTab] = useState<string>("all")
+  const [activeView, setActiveView] = useState<"active" | "archived">("active")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [soundEnabled, setSoundEnabled] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isSyncingDatabase, setIsSyncingDatabase] = useState(false)
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
+  const [databaseError, setDatabaseError] = useState<string | null>(null)
+  const [pendingChanges, setPendingChanges] = useState(false)
+  const { showNotification } = useNotifications()
+  const audioService = useAudio()
+
+  // Carregar lembretes do banco de dados
+  const loadRemindersFromDatabase = useCallback(async () => {
+    try {
+      setIsSyncingDatabase(true)
+      setDatabaseError(null)
+
+      // Carregar lembretes ativos
+      const activeRemindersData = await fetchReminders()
+      setReminders(activeRemindersData)
+
+      // Carregar lembretes arquivados
+      const archivedRemindersData = await fetchArchivedReminders()
+      setArchivedReminders(archivedRemindersData)
+
+      setLastSyncTime(new Date())
+      setPendingChanges(false)
+    } catch (error) {
+      console.error("Erro ao carregar lembretes:", error)
+      setDatabaseError("Erro ao carregar lembretes. Verifique sua conexão.")
+      showNotification({
+        title: "Erro de Sincronização",
+        message: "Não foi possível carregar os lembretes do banco de dados.",
+        type: "error",
+        autoCloseTime: 5000,
+      })
+    } finally {
+      setIsSyncingDatabase(false)
+      setIsLoading(false)
+    }
+  }, [showNotification])
+
+  // Salvar lembretes no banco de dados
+  const saveRemindersToDatabase = async () => {
+    try {
+      setIsSaving(true)
+      setDatabaseError(null)
+
+      // Salvar todos os lembretes ativos
+      await saveReminders(reminders)
+
+      setLastSyncTime(new Date())
+      setPendingChanges(false)
+
+      showNotification({
+        title: "Sincronização Concluída",
+        message: "Todos os lembretes foram salvos com sucesso.",
+        type: "success",
+        autoCloseTime: 3000,
+      })
+    } catch (error) {
+      console.error("Erro ao salvar lembretes:", error)
+      setDatabaseError("Erro ao salvar lembretes. Verifique sua conexão.")
+      showNotification({
+        title: "Erro de Sincronização",
+        message: "Não foi possível salvar os lembretes no banco de dados.",
+        type: "error",
+        autoCloseTime: 5000,
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  // Carregar lembretes ao montar o componente
+  useEffect(() => {
+    loadRemindersFromDatabase()
+  }, [loadRemindersFromDatabase])
+
+  // Auto-save quando houver alterações pendentes
+  useEffect(() => {
+    if (pendingChanges && !isSaving) {
+      const timer = setTimeout(() => {
+        saveRemindersToDatabase()
+      }, 5000) // Auto-save após 5 segundos de inatividade
+
+      return () => clearTimeout(timer)
+    }
+  }, [pendingChanges, isSaving, reminders])
+
+  // Verificar lembretes e enviar notificações
+  useEffect(() => {
+    const checkReminders = () => {
+      const now = new Date()
+
+      reminders.forEach((reminder) => {
+        if (reminder.status === "concluido" || reminder.status === "arquivado") return
+
+        const dueDateTime = new Date(`${reminder.dueDate}T${reminder.dueTime}:00`)
+        const minutesToDue = differenceInMinutes(dueDateTime, now)
+
+        // Notificar lembretes exatamente 1 hora antes do prazo (entre 58 e 62 minutos)
+        if (minutesToDue >= 58 && minutesToDue <= 62 && !reminder.oneHourNotified && reminder.status !== "atrasado") {
+          showNotification({
+            title: "Lembrete em 1 hora!",
+            message: `${reminder.title} vence em 1 hora`,
+            type: "alert",
+            dueTime: `Vence em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
+            playSound: soundEnabled,
+            soundId: "truck-horn",
+            autoCloseTime: 15000, // Mais tempo para notificações importantes
+            onAction: (id, action) => {
+              if (action === "complete") {
+                markAsCompleted(reminder.id)
+              } else if (action === "snooze") {
+                postponeReminder(reminder.id, 30) // Adiar por 30 minutos
+              }
+            },
+          })
+
+          // Marcar como notificado para 1 hora
+          setReminders((prev) =>
+            prev.map((r) =>
+              r.id === reminder.id ? { ...r, oneHourNotified: true, updatedAt: new Date().toISOString() } : r,
+            ),
+          )
+          setPendingChanges(true)
+        }
+
+        // Notificar lembretes atrasados
+        else if (isBefore(dueDateTime, now) && reminder.status !== "atrasado") {
+          showNotification({
+            title: "Lembrete Atrasado!",
+            message: reminder.title,
+            type: "alert",
+            dueTime: `Venceu em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
+            playSound: soundEnabled,
+            soundId: "truck-horn",
+            onAction: (id, action) => {
+              if (action === "complete") {
+                markAsCompleted(reminder.id)
+              } else if (action === "snooze") {
+                postponeReminder(reminder.id, 60) // Adiar por 60 minutos
+              }
+            },
+          })
+
+          // Atualizar status para atrasado
+          setReminders((prev) =>
+            prev.map((r) =>
+              r.id === reminder.id
+                ? { ...r, status: "atrasado", notified: true, updatedAt: new Date().toISOString() }
+                : r,
+            ),
+          )
+          setPendingChanges(true)
+        }
+
+        // Notificar lembretes próximos (menos de 15 minutos, mas não 1 hora)
+        else if (minutesToDue > 0 && minutesToDue < 15 && !reminder.notified && reminder.status !== "atrasado") {
+          showNotification({
+            title: "Lembrete Próximo",
+            message: reminder.title,
+            type: "info",
+            dueTime: `Vence em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
+            playSound: false, // Sem som para notificações menos urgentes
+            onAction: (id, action) => {
+              if (action === "complete") {
+                markAsCompleted(reminder.id)
+              } else if (action === "snooze") {
+                postponeReminder(reminder.id, 10) // Adiar por 10 minutos
+              }
+            },
+          })
+
+          // Marcar como notificado
+          setReminders((prev) =>
+            prev.map((r) => (r.id === reminder.id ? { ...r, notified: true, updatedAt: new Date().toISOString() } : r)),
+          )
+          setPendingChanges(true)
+        }
+      })
+    }
+
+    // Verificar imediatamente e depois a cada minuto
+    checkReminders()
+    const interval = setInterval(checkReminders, 60000)
+
+    return () => clearInterval(interval)
+  }, [reminders, showNotification, soundEnabled])
+
+  // Função para adiar um lembrete
+  const postponeReminder = async (id: string, minutes: number) => {
+    try {
+      const reminderToUpdate = reminders.find((r) => r.id === id)
+      if (!reminderToUpdate) return
+
+      const dueDateTime = new Date(`${reminderToUpdate.dueDate}T${reminderToUpdate.dueTime}:00`)
+      const newDueTime = new Date(dueDateTime.getTime() + minutes * 60 * 1000)
+
+      const updatedReminder = {
+        ...reminderToUpdate,
+        dueDate: format(newDueTime, "yyyy-MM-dd"),
+        dueTime: format(newDueTime, "HH:mm"),
+        notified: false,
+        oneHourNotified: false,
+        updatedAt: new Date().toISOString(),
+      }
+
+      // Atualizar estado local
+      setReminders((prev) => prev.map((r) => (r.id === id ? updatedReminder : r)))
+      setPendingChanges(true)
+
+      // Salvar no banco de dados
+      await saveReminder(updatedReminder)
+
+      showNotification({
+        title: "Lembrete Adiado",
+        message: `O lembrete foi adiado por ${minutes} minutos`,
+        type: "success",
+        autoCloseTime: 5000,
+      })
+    } catch (error) {
+      console.error("Erro ao adiar lembrete:", error)
+      showNotification({
+        title: "Erro ao Adiar",
+        message: "Não foi possível adiar o lembrete. Tente novamente.",
+        type: "error",
+        autoCloseTime: 5000,
+      })
+    }
+  }
+
+  // Função para alternar o som
+  const toggleSound = () => {
+    setSoundEnabled(!soundEnabled)
+    if (audioService) {
+      audioService.setMuted(!soundEnabled)
+    }
+  }
 
   // Função para obter a cor baseada na prioridade
   const getPriorityColor = (priority: ReminderPriority) => {
@@ -172,6 +351,8 @@ export function ReminderSystem() {
         return "bg-green-500/20 text-green-400 border-green-500/30"
       case "atrasado":
         return "bg-red-500/20 text-red-400 border-red-500/30"
+      case "arquivado":
+        return "bg-purple-500/20 text-purple-400 border-purple-500/30"
       default:
         return "bg-slate-500/20 text-slate-400 border-slate-500/30"
     }
@@ -188,6 +369,8 @@ export function ReminderSystem() {
         return <CheckCircle2 className="h-4 w-4 text-green-400" />
       case "atrasado":
         return <AlertCircle className="h-4 w-4 text-red-400" />
+      case "arquivado":
+        return <Archive className="h-4 w-4 text-purple-400" />
       default:
         return <Info className="h-4 w-4 text-slate-400" />
     }
@@ -206,7 +389,7 @@ export function ReminderSystem() {
   const isReminderOverdue = (reminder: Reminder) => {
     const now = new Date()
     const dueDateTime = new Date(`${reminder.dueDate}T${reminder.dueTime}:00`)
-    return isBefore(dueDateTime, now) && reminder.status !== "concluido"
+    return isBefore(dueDateTime, now) && reminder.status !== "concluido" && reminder.status !== "arquivado"
   }
 
   // Função para verificar se um lembrete está próximo do prazo (menos de 24h)
@@ -214,51 +397,278 @@ export function ReminderSystem() {
     const now = new Date()
     const dueDateTime = new Date(`${reminder.dueDate}T${reminder.dueTime}:00`)
     const oneDayFromNow = addDays(now, 1)
-    return isAfter(dueDateTime, now) && isBefore(dueDateTime, oneDayFromNow) && reminder.status !== "concluido"
+    return (
+      isAfter(dueDateTime, now) &&
+      isBefore(dueDateTime, oneDayFromNow) &&
+      reminder.status !== "concluido" &&
+      reminder.status !== "arquivado"
+    )
+  }
+
+  // Função para verificar se um lembrete está a exatamente 1 hora do prazo
+  const isReminderOneHourToDue = (reminder: Reminder) => {
+    const now = new Date()
+    const dueDateTime = new Date(`${reminder.dueDate}T${reminder.dueTime}:00`)
+    const minutesToDue = differenceInMinutes(dueDateTime, now)
+    return (
+      minutesToDue >= 55 && minutesToDue <= 65 && reminder.status !== "concluido" && reminder.status !== "arquivado"
+    )
   }
 
   // Função para adicionar um novo lembrete
-  const addReminder = (reminder: Omit<Reminder, "id" | "createdAt" | "updatedAt">) => {
-    const newReminder: Reminder = {
-      ...reminder,
-      id: (reminders.length + 1).toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+  const addReminder = async (
+    reminderData: Omit<Reminder, "id" | "createdAt" | "updatedAt" | "notified" | "oneHourNotified">,
+  ) => {
+    try {
+      // Criar novo objeto de lembrete
+      const newReminder: Reminder = {
+        ...reminderData,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        notified: false,
+        oneHourNotified: false,
+      }
+
+      // Atualizar estado local
+      setReminders((prev) => [...prev, newReminder])
+      setPendingChanges(true)
+      setIsDialogOpen(false)
+
+      // Salvar no banco de dados
+      await saveReminder(newReminder)
+
+      // Mostrar notificação de sucesso
+      showNotification({
+        title: "Novo Lembrete Criado",
+        message: newReminder.title,
+        type: "success",
+        dueTime: `Vence em ${format(
+          new Date(`${newReminder.dueDate}T${newReminder.dueTime}:00`),
+          "dd/MM/yyyy 'às' HH:mm",
+        )}`,
+        autoCloseTime: 5000,
+      })
+    } catch (error) {
+      console.error("Erro ao adicionar lembrete:", error)
+      showNotification({
+        title: "Erro ao Criar Lembrete",
+        message: "Não foi possível criar o lembrete. Tente novamente.",
+        type: "error",
+        autoCloseTime: 5000,
+      })
     }
-    setReminders([...reminders, newReminder])
-    setIsDialogOpen(false)
   }
 
   // Função para atualizar um lembrete existente
-  const updateReminder = (updatedReminder: Reminder) => {
-    setReminders(
-      reminders.map((reminder) =>
-        reminder.id === updatedReminder.id ? { ...updatedReminder, updatedAt: new Date().toISOString() } : reminder,
-      ),
-    )
-    setIsDialogOpen(false)
-    setEditingReminder(null)
+  const updateReminder = async (updatedReminderData: Reminder) => {
+    try {
+      const originalReminder = reminders.find((r) => r.id === updatedReminderData.id)
+      if (!originalReminder) return
+
+      // Verificar se a data/hora foi alterada para resetar as notificações
+      const resetNotifications =
+        originalReminder.dueDate !== updatedReminderData.dueDate ||
+        originalReminder.dueTime !== updatedReminderData.dueTime
+
+      const updatedReminder = {
+        ...updatedReminderData,
+        updatedAt: new Date().toISOString(),
+        notified: resetNotifications ? false : originalReminder.notified,
+        oneHourNotified: resetNotifications ? false : originalReminder.oneHourNotified,
+      }
+
+      // Atualizar estado local
+      setReminders((prev) => prev.map((r) => (r.id === updatedReminder.id ? updatedReminder : r)))
+      setPendingChanges(true)
+      setIsDialogOpen(false)
+      setEditingReminder(null)
+
+      // Salvar no banco de dados
+      await saveReminder(updatedReminder)
+
+      // Mostrar notificação de sucesso
+      showNotification({
+        title: "Lembrete Atualizado",
+        message: updatedReminder.title,
+        type: "info",
+        autoCloseTime: 5000,
+      })
+    } catch (error) {
+      console.error("Erro ao atualizar lembrete:", error)
+      showNotification({
+        title: "Erro ao Atualizar Lembrete",
+        message: "Não foi possível atualizar o lembrete. Tente novamente.",
+        type: "error",
+        autoCloseTime: 5000,
+      })
+    }
   }
 
   // Função para excluir um lembrete
-  const deleteReminder = (id: string) => {
-    setReminders(reminders.filter((reminder) => reminder.id !== id))
+  const deleteReminderHandler = async (id: string) => {
+    try {
+      const reminderToDelete = reminders.find((r) => r.id === id)
+      if (!reminderToDelete) return
+
+      // Atualizar estado local
+      setReminders((prev) => prev.filter((r) => r.id !== id))
+      setPendingChanges(true)
+
+      // Excluir do banco de dados
+      await deleteReminder(id)
+
+      // Mostrar notificação de sucesso
+      showNotification({
+        title: "Lembrete Excluído",
+        message: reminderToDelete.title,
+        type: "info",
+        autoCloseTime: 5000,
+      })
+    } catch (error) {
+      console.error("Erro ao excluir lembrete:", error)
+      showNotification({
+        title: "Erro ao Excluir Lembrete",
+        message: "Não foi possível excluir o lembrete. Tente novamente.",
+        type: "error",
+        autoCloseTime: 5000,
+      })
+    }
+  }
+
+  // Função para excluir um lembrete arquivado
+  const deleteArchivedReminderHandler = async (id: string) => {
+    try {
+      const reminderToDelete = archivedReminders.find((r) => r.id === id)
+      if (!reminderToDelete) return
+
+      // Atualizar estado local
+      setArchivedReminders((prev) => prev.filter((r) => r.id !== id))
+
+      // Excluir do banco de dados
+      await deleteReminder(id)
+
+      // Mostrar notificação de sucesso
+      showNotification({
+        title: "Lembrete Arquivado Excluído",
+        message: reminderToDelete.title,
+        type: "info",
+        autoCloseTime: 5000,
+      })
+    } catch (error) {
+      console.error("Erro ao excluir lembrete arquivado:", error)
+      showNotification({
+        title: "Erro ao Excluir Lembrete",
+        message: "Não foi possível excluir o lembrete arquivado. Tente novamente.",
+        type: "error",
+        autoCloseTime: 5000,
+      })
+    }
   }
 
   // Função para marcar um lembrete como concluído
-  const markAsCompleted = (id: string) => {
-    setReminders(
-      reminders.map((reminder) =>
-        reminder.id === id
-          ? {
-              ...reminder,
-              status: "concluido",
-              completedAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }
-          : reminder,
-      ),
-    )
+  const markAsCompleted = async (id: string) => {
+    try {
+      const reminderToComplete = reminders.find((r) => r.id === id)
+      if (!reminderToComplete) return
+
+      const completedReminder = {
+        ...reminderToComplete,
+        status: "concluido" as ReminderStatus,
+        completedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+
+      // Atualizar estado local
+      setReminders((prev) => prev.map((r) => (r.id === id ? completedReminder : r)))
+      setPendingChanges(true)
+
+      // Salvar no banco de dados
+      await saveReminder(completedReminder)
+
+      // Mostrar notificação de sucesso
+      showNotification({
+        title: "Lembrete Concluído",
+        message: reminderToComplete.title,
+        type: "success",
+        autoCloseTime: 5000,
+      })
+    } catch (error) {
+      console.error("Erro ao marcar lembrete como concluído:", error)
+      showNotification({
+        title: "Erro ao Concluir Lembrete",
+        message: "Não foi possível marcar o lembrete como concluído. Tente novamente.",
+        type: "error",
+        autoCloseTime: 5000,
+      })
+    }
+  }
+
+  // Função para arquivar um lembrete
+  const archiveReminderHandler = async (id: string) => {
+    try {
+      const reminderToArchive = reminders.find((r) => r.id === id)
+      if (!reminderToArchive) return
+
+      // Atualizar estado local
+      setReminders((prev) => prev.filter((r) => r.id !== id))
+      setPendingChanges(true)
+
+      // Arquivar no banco de dados
+      const archivedReminderData = await archiveReminder(reminderToArchive)
+
+      // Adicionar à lista de arquivados
+      setArchivedReminders((prev) => [archivedReminderData, ...prev])
+
+      // Mostrar notificação de sucesso
+      showNotification({
+        title: "Lembrete Arquivado",
+        message: reminderToArchive.title,
+        type: "success",
+        autoCloseTime: 5000,
+      })
+    } catch (error) {
+      console.error("Erro ao arquivar lembrete:", error)
+      showNotification({
+        title: "Erro ao Arquivar Lembrete",
+        message: "Não foi possível arquivar o lembrete. Tente novamente.",
+        type: "error",
+        autoCloseTime: 5000,
+      })
+    }
+  }
+
+  // Função para restaurar um lembrete arquivado
+  const restoreReminderHandler = async (id: string) => {
+    try {
+      const reminderToRestore = archivedReminders.find((r) => r.id === id)
+      if (!reminderToRestore) return
+
+      // Atualizar estado local
+      setArchivedReminders((prev) => prev.filter((r) => r.id !== id))
+
+      // Restaurar no banco de dados
+      await restoreReminder(id)
+
+      // Recarregar lembretes ativos
+      await loadRemindersFromDatabase()
+
+      // Mostrar notificação de sucesso
+      showNotification({
+        title: "Lembrete Restaurado",
+        message: reminderToRestore.title,
+        type: "success",
+        autoCloseTime: 5000,
+      })
+    } catch (error) {
+      console.error("Erro ao restaurar lembrete:", error)
+      showNotification({
+        title: "Erro ao Restaurar Lembrete",
+        message: "Não foi possível restaurar o lembrete. Tente novamente.",
+        type: "error",
+        autoCloseTime: 5000,
+      })
+    }
   }
 
   // Função para filtrar lembretes com base na aba ativa e termo de busca
@@ -282,6 +692,20 @@ export function ReminderSystem() {
     return true
   })
 
+  // Função para filtrar lembretes arquivados por termo de busca
+  const filteredArchivedReminders = archivedReminders.filter((reminder) => {
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase()
+      return (
+        reminder.title.toLowerCase().includes(searchLower) ||
+        reminder.description.toLowerCase().includes(searchLower) ||
+        (reminder.assignedTo && reminder.assignedTo.toLowerCase().includes(searchLower)) ||
+        reminder.category.toLowerCase().includes(searchLower)
+      )
+    }
+    return true
+  })
+
   // Ordenar lembretes por prioridade e data
   const sortedReminders = [...filteredReminders].sort((a, b) => {
     // Primeiro por status (atrasado primeiro)
@@ -298,6 +722,13 @@ export function ReminderSystem() {
     return new Date(`${a.dueDate}T${a.dueTime}:00`).getTime() - new Date(`${b.dueDate}T${b.dueTime}:00`).getTime()
   })
 
+  // Ordenar lembretes arquivados por data de conclusão (mais recentes primeiro)
+  const sortedArchivedReminders = [...filteredArchivedReminders].sort((a, b) => {
+    const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0
+    const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0
+    return dateB - dateA
+  })
+
   // Contagem de lembretes por status
   const reminderCounts = {
     all: reminders.length,
@@ -305,6 +736,7 @@ export function ReminderSystem() {
     "em-andamento": reminders.filter((r) => r.status === "em-andamento").length,
     concluido: reminders.filter((r) => r.status === "concluido").length,
     atrasado: reminders.filter((r) => r.status === "atrasado").length,
+    arquivado: archivedReminders.length,
   }
 
   return (
@@ -314,176 +746,410 @@ export function ReminderSystem() {
           <CardTitle className="text-slate-100 flex items-center text-base font-semibold tracking-wide">
             <Bell className="mr-2 h-5 w-5 text-green-500" />
             Sistema de Lembretes
+            {pendingChanges && (
+              <Badge className="ml-2 bg-amber-500/20 text-amber-300 border-amber-500/50 animate-pulse">
+                Alterações não salvas
+              </Badge>
+            )}
           </CardTitle>
-          <Button
-            onClick={() => {
-              setEditingReminder(null)
-              setIsDialogOpen(true)
-            }}
-            size="sm"
-            className="bg-green-600 hover:bg-green-700"
-          >
-            <Plus className="h-4 w-4 mr-1" /> Novo Lembrete
-          </Button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-slate-400 hover:text-slate-100"
+                onClick={toggleSound}
+                title={soundEnabled ? "Desativar sons" : "Ativar sons"}
+              >
+                {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              </Button>
+            </div>
+            <Button
+              onClick={() => {
+                setEditingReminder(null)
+                setIsDialogOpen(true)
+              }}
+              size="sm"
+              className="bg-green-600 hover:bg-green-700"
+              disabled={isLoading}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Novo Lembrete
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {/* Filtros e busca */}
-          <div className="flex flex-col sm:flex-row justify-between gap-3">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="bg-slate-800/50 p-1">
-                <TabsTrigger
-                  value="all"
-                  className="data-[state=active]:bg-slate-700 data-[state=active]:text-green-400"
-                >
-                  Todos <Badge className="ml-1 bg-slate-700">{reminderCounts.all}</Badge>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="pendente"
-                  className="data-[state=active]:bg-slate-700 data-[state=active]:text-blue-400"
-                >
-                  Pendentes <Badge className="ml-1 bg-blue-900/30 text-blue-400">{reminderCounts.pendente}</Badge>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="em-andamento"
-                  className="data-[state=active]:bg-slate-700 data-[state=active]:text-amber-400"
-                >
-                  Em Andamento{" "}
-                  <Badge className="ml-1 bg-amber-900/30 text-amber-400">{reminderCounts["em-andamento"]}</Badge>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="concluido"
-                  className="data-[state=active]:bg-slate-700 data-[state=active]:text-green-400"
-                >
-                  Concluídos <Badge className="ml-1 bg-green-900/30 text-green-400">{reminderCounts.concluido}</Badge>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="atrasado"
-                  className="data-[state=active]:bg-slate-700 data-[state=active]:text-red-400"
-                >
-                  Atrasados <Badge className="ml-1 bg-red-900/30 text-red-400">{reminderCounts.atrasado}</Badge>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            <div className="relative">
-              <Input
-                placeholder="Buscar lembretes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9 bg-slate-800 border-slate-700"
-              />
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-            </div>
+        {/* Exibir mensagem de carregamento */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 text-green-500 animate-spin mb-4" />
+            <p className="text-slate-400">Carregando lembretes...</p>
           </div>
-
-          {/* Lista de lembretes */}
-          <div className="space-y-3">
-            {sortedReminders.length > 0 ? (
-              sortedReminders.map((reminder) => (
-                <div
-                  key={reminder.id}
-                  className={`bg-slate-800/50 rounded-md p-4 border ${
-                    isReminderOverdue(reminder)
-                      ? "border-red-500/50"
-                      : isReminderNearDue(reminder)
-                        ? "border-amber-500/50"
-                        : "border-slate-700/50"
-                  } hover:bg-slate-800/70 transition-colors`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-slate-200 font-medium">{reminder.title}</h3>
-                        <Badge className={getPriorityColor(reminder.priority)}>
-                          {getPriorityIcon(reminder.priority)}
-                          <span className="ml-1 capitalize">{reminder.priority}</span>
-                        </Badge>
-                        <Badge className={getStatusColor(reminder.status)}>
-                          {getStatusIcon(reminder.status)}
-                          <span className="ml-1 capitalize">
-                            {reminder.status === "em-andamento" ? "Em andamento" : reminder.status}
-                          </span>
-                        </Badge>
-                      </div>
-                      <p className="text-slate-400 text-sm mb-3">{reminder.description}</p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
-                        <div className="flex items-center">
-                          <Calendar className="h-3 w-3 mr-1" />
-                          {formatDate(reminder.dueDate)}
-                        </div>
-                        <div className="flex items-center">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {reminder.dueTime}
-                        </div>
-                        {reminder.category && (
-                          <div className="flex items-center">
-                            <Flag className="h-3 w-3 mr-1" />
-                            <span className="capitalize">{reminder.category}</span>
-                          </div>
-                        )}
-                        {reminder.assignedTo && (
-                          <div className="flex items-center">
-                            <User className="h-3 w-3 mr-1" />
-                            {reminder.assignedTo}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex space-x-1">
-                      {reminder.status !== "concluido" && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-slate-500 hover:text-green-500"
-                          onClick={() => markAsCompleted(reminder.id)}
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-slate-500 hover:text-blue-500"
-                        onClick={() => {
-                          setEditingReminder(reminder)
-                          setIsDialogOpen(true)
-                        }}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-slate-500 hover:text-red-500"
-                        onClick={() => deleteReminder(reminder.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Erro de banco de dados */}
+            {databaseError && (
+              <div className="bg-red-900/20 border border-red-800/50 rounded-md p-3 text-red-300 mb-4">
+                <div className="flex items-center">
+                  <AlertCircle className="h-5 w-5 mr-2 text-red-400" />
+                  <p>{databaseError}</p>
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-10 text-slate-500">
-                <Bell className="h-12 w-12 mx-auto mb-3 text-slate-600" />
-                <p className="text-lg">Nenhum lembrete encontrado</p>
-                <p className="text-sm">
-                  {searchTerm
-                    ? "Tente ajustar seus filtros de busca"
-                    : activeTab !== "all"
-                      ? `Não há lembretes com status "${activeTab}"`
-                      : "Adicione um novo lembrete para começar"}
-                </p>
+              </div>
+            )}
+
+            {/* Alternar entre lembretes ativos e arquivados */}
+            <div className="flex justify-center mb-2">
+              <Tabs value={activeView} onValueChange={(value) => setActiveView(value as "active" | "archived")}>
+                <TabsList className="bg-slate-800/50 p-1">
+                  <TabsTrigger
+                    value="active"
+                    className="data-[state=active]:bg-slate-700 data-[state=active]:text-green-400"
+                  >
+                    Lembretes Ativos
+                    <Badge className="ml-1 bg-green-900/30 text-green-400">{reminderCounts.all}</Badge>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="archived"
+                    className="data-[state=active]:bg-slate-700 data-[state=active]:text-purple-400"
+                  >
+                    Lembretes Arquivados
+                    <Badge className="ml-1 bg-purple-900/30 text-purple-400">{reminderCounts.arquivado}</Badge>
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            {/* Filtros e busca */}
+            <div className="flex flex-col sm:flex-row justify-between gap-3">
+              {activeView === "active" ? (
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                  <TabsList className="bg-slate-800/50 p-1">
+                    <TabsTrigger
+                      value="all"
+                      className="data-[state=active]:bg-slate-700 data-[state=active]:text-green-400"
+                    >
+                      Todos <Badge className="ml-1 bg-slate-700">{reminderCounts.all}</Badge>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="pendente"
+                      className="data-[state=active]:bg-slate-700 data-[state=active]:text-blue-400"
+                    >
+                      Pendentes <Badge className="ml-1 bg-blue-900/30 text-blue-400">{reminderCounts.pendente}</Badge>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="em-andamento"
+                      className="data-[state=active]:bg-slate-700 data-[state=active]:text-amber-400"
+                    >
+                      Em Andamento{" "}
+                      <Badge className="ml-1 bg-amber-900/30 text-amber-400">{reminderCounts["em-andamento"]}</Badge>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="concluido"
+                      className="data-[state=active]:bg-slate-700 data-[state=active]:text-green-400"
+                    >
+                      Concluídos{" "}
+                      <Badge className="ml-1 bg-green-900/30 text-green-400">{reminderCounts.concluido}</Badge>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="atrasado"
+                      className="data-[state=active]:bg-slate-700 data-[state=active]:text-red-400"
+                    >
+                      Atrasados <Badge className="ml-1 bg-red-900/30 text-red-400">{reminderCounts.atrasado}</Badge>
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              ) : (
+                <div className="flex items-center">
+                  <History className="h-5 w-5 text-purple-400 mr-2" />
+                  <span className="text-slate-300">Histórico de Lembretes Arquivados</span>
+                </div>
+              )}
+
+              <div className="relative">
+                <Input
+                  placeholder="Buscar lembretes..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 bg-slate-800 border-slate-700"
+                />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+              </div>
+            </div>
+
+            {/* Lista de lembretes ativos */}
+            {activeView === "active" && (
+              <div className="space-y-3">
+                {sortedReminders.length > 0 ? (
+                  sortedReminders.map((reminder) => (
+                    <div
+                      key={reminder.id}
+                      className={`bg-slate-800/50 rounded-md p-4 border ${
+                        isReminderOverdue(reminder)
+                          ? "border-red-500/50"
+                          : isReminderOneHourToDue(reminder)
+                            ? "border-amber-500/80 animate-pulse"
+                            : isReminderNearDue(reminder)
+                              ? "border-amber-500/50"
+                              : "border-slate-700/50"
+                      } hover:bg-slate-800/70 transition-colors`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-slate-200 font-medium">{reminder.title}</h3>
+                            <Badge className={getPriorityColor(reminder.priority)}>
+                              {getPriorityIcon(reminder.priority)}
+                              <span className="ml-1 capitalize">{reminder.priority}</span>
+                            </Badge>
+                            <Badge className={getStatusColor(reminder.status)}>
+                              {getStatusIcon(reminder.status)}
+                              <span className="ml-1 capitalize">
+                                {reminder.status === "em-andamento" ? "Em andamento" : reminder.status}
+                              </span>
+                            </Badge>
+                            {isReminderOneHourToDue(reminder) && (
+                              <Badge className="bg-amber-500/30 text-amber-300 border-amber-500/50 animate-pulse">
+                                <Clock className="h-3 w-3 mr-1" />
+                                <span>1h restante</span>
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-slate-400 text-sm mb-3">{reminder.description}</p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
+                            <div className="flex items-center">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {formatDate(reminder.dueDate)}
+                            </div>
+                            <div className="flex items-center">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {reminder.dueTime}
+                            </div>
+                            {reminder.category && (
+                              <div className="flex items-center">
+                                <Flag className="h-3 w-3 mr-1" />
+                                <span className="capitalize">{reminder.category}</span>
+                              </div>
+                            )}
+                            {reminder.assignedTo && (
+                              <div className="flex items-center">
+                                <User className="h-3 w-3 mr-1" />
+                                {reminder.assignedTo}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex space-x-1">
+                          {reminder.status !== "concluido" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-500 hover:text-green-500"
+                              onClick={() => markAsCompleted(reminder.id)}
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-blue-500"
+                            onClick={() => {
+                              setEditingReminder(reminder)
+                              setIsDialogOpen(true)
+                            }}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-purple-500"
+                            onClick={() => archiveReminderHandler(reminder.id)}
+                            title="Arquivar lembrete"
+                          >
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-red-500"
+                            onClick={() => deleteReminderHandler(reminder.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-10 text-slate-500">
+                    <Bell className="h-12 w-12 mx-auto mb-3 text-slate-600" />
+                    <p className="text-lg">Nenhum lembrete encontrado</p>
+                    <p className="text-sm">
+                      {searchTerm
+                        ? "Tente ajustar seus filtros de busca"
+                        : activeTab !== "all"
+                          ? `Não há lembretes com status "${activeTab}"`
+                          : "Adicione um novo lembrete para começar"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Lista de lembretes arquivados */}
+            {activeView === "archived" && (
+              <div className="space-y-3">
+                {sortedArchivedReminders.length > 0 ? (
+                  sortedArchivedReminders.map((reminder) => (
+                    <div
+                      key={reminder.id}
+                      className="bg-slate-800/50 rounded-md p-4 border border-slate-700/50 hover:bg-slate-800/70 transition-colors"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-slate-200 font-medium">{reminder.title}</h3>
+                            <Badge className={getPriorityColor(reminder.priority)}>
+                              {getPriorityIcon(reminder.priority)}
+                              <span className="ml-1 capitalize">{reminder.priority}</span>
+                            </Badge>
+                            <Badge className={getStatusColor("arquivado")}>
+                              {getStatusIcon("arquivado")}
+                              <span className="ml-1">Arquivado</span>
+                            </Badge>
+                          </div>
+                          <p className="text-slate-400 text-sm mb-3">{reminder.description}</p>
+                          <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-500">
+                            <div className="flex items-center">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {formatDate(reminder.dueDate)}
+                            </div>
+                            <div className="flex items-center">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {reminder.dueTime}
+                            </div>
+                            {reminder.category && (
+                              <div className="flex items-center">
+                                <Flag className="h-3 w-3 mr-1" />
+                                <span className="capitalize">{reminder.category}</span>
+                              </div>
+                            )}
+                            {reminder.assignedTo && (
+                              <div className="flex items-center">
+                                <User className="h-3 w-3 mr-1" />
+                                {reminder.assignedTo}
+                              </div>
+                            )}
+                            {reminder.completedAt && (
+                              <div className="flex items-center">
+                                <CheckCircle2 className="h-3 w-3 mr-1 text-green-400" />
+                                <span>
+                                  Concluído em{" "}
+                                  {format(new Date(reminder.completedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-blue-500"
+                            onClick={() => restoreReminderHandler(reminder.id)}
+                            title="Restaurar lembrete"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-slate-500 hover:text-red-500"
+                            onClick={() => deleteArchivedReminderHandler(reminder.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-10 text-slate-500">
+                    <Archive className="h-12 w-12 mx-auto mb-3 text-slate-600" />
+                    <p className="text-lg">Nenhum lembrete arquivado encontrado</p>
+                    <p className="text-sm">
+                      {searchTerm
+                        ? "Tente ajustar seus filtros de busca"
+                        : "Quando você arquivar lembretes, eles aparecerão aqui"}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        </div>
+        )}
       </CardContent>
       <CardFooter className="border-t border-slate-700/50 pt-4 flex justify-between">
         <div className="text-xs text-slate-500">
-          Mostrando {sortedReminders.length} de {reminders.length} lembretes
+          {activeView === "active" ? (
+            <>
+              Mostrando {sortedReminders.length} de {reminders.length} lembretes
+            </>
+          ) : (
+            <>
+              Mostrando {sortedArchivedReminders.length} de {archivedReminders.length} lembretes arquivados
+            </>
+          )}
+          {lastSyncTime && (
+            <span className="ml-2">
+              Última sincronização: {format(lastSyncTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-slate-500">Sons de notificação:</span>
+            <Switch
+              checked={soundEnabled}
+              onCheckedChange={setSoundEnabled}
+              className="data-[state=checked]:bg-green-500"
+            />
+          </div>
+          <div className="flex space-x-2">
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={loadRemindersFromDatabase}
+              disabled={isSyncingDatabase}
+            >
+              {isSyncingDatabase ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" /> Sincronizar
+                </>
+              )}
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              onClick={saveRemindersToDatabase}
+              disabled={isSaving || !pendingChanges}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" /> Salvar Alterações
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </CardFooter>
 
