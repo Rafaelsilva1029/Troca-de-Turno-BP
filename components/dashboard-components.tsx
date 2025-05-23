@@ -30,11 +30,11 @@ export function ProcessRow({
       <div className="col-span-1">
         <Badge
           variant="outline"
-          className={`${
+          className={
             status === "running"
               ? "bg-green-500/20 text-green-400 border-green-500/50"
               : "bg-amber-500/20 text-amber-400 border-amber-500/50"
-          }`}
+          }
         >
           {status}
         </Badge>
@@ -64,11 +64,11 @@ export function StorageItem({
         <div className="text-sm font-medium text-slate-300">{name}</div>
         <Badge
           variant="outline"
-          className={`${
+          className={
             type === "SSD"
               ? "bg-cyan-500/20 text-cyan-400 border-cyan-500/50"
               : "bg-blue-500/20 text-blue-400 border-blue-500/50"
-          }`}
+          }
         >
           {type}
         </Badge>
@@ -205,11 +205,6 @@ export function PerformanceChart({ metrics = [] }: { metrics: SystemMetric[] }) 
   // Calcular a altura máxima do gráfico
   const maxHeight = 200
   const padding = 20
-
-  // Obter os valores máximos para normalização
-  const maxCpu = Math.max(...sortedMetrics.map((m) => m.cpu_usage))
-  const maxMemory = Math.max(...sortedMetrics.map((m) => m.memory_usage))
-  const maxNetwork = Math.max(...sortedMetrics.map((m) => m.network_status))
 
   // Normalizar valores para a altura do gráfico
   const normalizeCpu = (value: number) => (value / 100) * (maxHeight - padding * 2) + padding

@@ -47,6 +47,8 @@ import {
   ActionButton,
   PerformanceChart,
 } from "@/components/dashboard-components"
+import { getSystemAlerts, simulateSystemAlert } from "./actions/system-alerts"
+import type { SystemAlert } from "@/lib/supabase"
 
 export default function Dashboard() {
   const [theme, setTheme] = useState<"dark" | "light">("dark")
@@ -58,6 +60,7 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isLoading, setIsLoading] = useState(true)
   const [metricsHistory, setMetricsHistory] = useState<SystemMetric[]>([])
+  const [systemAlerts, setSystemAlerts] = useState<SystemAlert[]>([])
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -79,6 +82,10 @@ export default function Dashboard() {
         // Buscar histórico de métricas
         const history = await getSystemMetricsHistory(24)
         setMetricsHistory(history)
+
+        // Buscar alertas do sistema
+        const alerts = await getSystemAlerts(4)
+        setSystemAlerts(alerts)
 
         setIsLoading(false)
       } catch (error) {
@@ -120,6 +127,24 @@ export default function Dashboard() {
         console.error("Error simulating metrics:", error)
       }
     }, 30000) // Atualizar a cada 30 segundos
+
+    return () => clearInterval(interval)
+  }, [])
+
+  // Simulate new alerts periodically
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const { success } = await simulateSystemAlert()
+        if (success) {
+          // Recarregar alertas
+          const updatedAlerts = await getSystemAlerts(4)
+          setSystemAlerts(updatedAlerts)
+        }
+      } catch (error) {
+        console.error("Error simulating alerts:", error)
+      }
+    }, 60000) // Criar um novo alerta a cada minuto
 
     return () => clearInterval(interval)
   }, [])
@@ -248,6 +273,10 @@ export default function Dashboard() {
       // Buscar histórico de métricas
       const history = await getSystemMetricsHistory(24)
       setMetricsHistory(history)
+
+      // Buscar alertas do sistema
+      const alerts = await getSystemAlerts(4)
+      setSystemAlerts(alerts)
 
       setIsLoading(false)
     } catch (error) {
@@ -608,30 +637,15 @@ export default function Dashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      <AlertItem
-                        title="Security Scan Complete"
-                        time="14:32:12"
-                        description="No threats detected in system scan"
-                        type="info"
-                      />
-                      <AlertItem
-                        title="Bandwidth Spike Detected"
-                        time="13:45:06"
-                        description="Unusual network activity on port 443"
-                        type="warning"
-                      />
-                      <AlertItem
-                        title="System Update Available"
-                        time="09:12:45"
-                        description="Version 12.4.5 ready to install"
-                        type="update"
-                      />
-                      <AlertItem
-                        title="Backup Completed"
-                        time="04:30:00"
-                        description="Incremental backup to drive E: successful"
-                        type="success"
-                      />
+                      {systemAlerts.map((alert, index) => (
+                        <AlertItem
+                          key={alert.id || index}
+                          title={alert.title}
+                          time={new Date(alert.timestamp || "").toLocaleTimeString()}
+                          description={alert.description}
+                          type={alert.type}
+                        />
+                      ))}
                     </div>
                   </CardContent>
                 </Card>

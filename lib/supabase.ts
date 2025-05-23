@@ -365,6 +365,63 @@ export async function saveSystemMetric(metric: SystemMetric) {
   return true
 }
 
+// Tipo para alertas do sistema
+export type SystemAlert = {
+  id?: number
+  title: string
+  description: string
+  type: "info" | "warning" | "error" | "success" | "update"
+  timestamp?: string
+}
+
+// Funções para alertas do sistema
+export async function fetchSystemAlerts(limit = 10) {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("system_alerts")
+    .select("*")
+    .order("timestamp", { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error("Error fetching system alerts:", error)
+    throw error
+  }
+
+  return data || []
+}
+
+export async function saveSystemAlert(alert: SystemAlert) {
+  const supabase = getSupabaseClient()
+
+  const alertToSave = {
+    ...alert,
+    timestamp: new Date().toISOString(),
+  }
+
+  const { error } = await supabase.from("system_alerts").insert(alertToSave)
+
+  if (error) {
+    console.error("Error saving system alert:", error)
+    throw error
+  }
+
+  return true
+}
+
+export async function deleteSystemAlert(id: number) {
+  const supabase = getSupabaseClient()
+
+  const { error } = await supabase.from("system_alerts").delete().eq("id", id)
+
+  if (error) {
+    console.error("Error deleting system alert:", error)
+    throw error
+  }
+
+  return true
+}
+
 // Adicionar os tipos e funções para o sistema de lembretes após as funções existentes
 
 // Tipos para o sistema de lembretes
