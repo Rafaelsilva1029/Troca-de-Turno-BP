@@ -1,26 +1,67 @@
 "use client"
-import { useToast } from "@/hooks/use-toast"
-import { useAudio } from "@/lib/audio-service"
+
+import { useToast } from "@/components/ui/use-toast"
+import { useState, useEffect } from "react"
+
+// Implementação simplificada do serviço de áudio diretamente no componente
+function useLocalAudio() {
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
+
+  useEffect(() => {
+    // Criar elemento de áudio
+    const audioElement = new Audio()
+    audioElement.preload = "auto"
+    setAudio(audioElement)
+
+    // Limpar quando o componente for desmontado
+    return () => {
+      audioElement.pause()
+      audioElement.src = ""
+    }
+  }, [])
+
+  const play = (src: string) => {
+    if (audio) {
+      audio.src = src
+      audio.currentTime = 0
+
+      const playPromise = audio.play()
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          console.error("Erro ao reproduzir áudio:", error)
+        })
+      }
+    }
+  }
+
+  return { play }
+}
 
 export const NotificationManager = () => {
   const { toast } = useToast()
-  const audioService = useAudio()
+  const { play } = useLocalAudio()
 
-  // Por enquanto, vamos simplificar o componente removendo a dependência do Liveblocks
-  // que não está configurada neste projeto
-
+  // Função para mostrar notificação
   const showNotification = (title: string, description: string) => {
     toast({
       title,
       description,
     })
 
-    if (audioService) {
-      audioService.play("notification")
-    }
+    // Reproduzir som de notificação (usando um som padrão do sistema)
+    play("/sounds/notification.mp3")
   }
 
-  // Este componente pode ser usado para gerenciar notificações globalmente
-  // Por enquanto, retorna null pois é apenas um gerenciador
+  // Exemplo de uso (remova em produção)
+  useEffect(() => {
+    // Mostrar uma notificação de teste quando o componente montar
+    const timer = setTimeout(() => {
+      showNotification("Notificação de Teste", "Esta é uma notificação de teste")
+    }, 3000)
+
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Este componente não renderiza nada visualmente
   return null
 }
