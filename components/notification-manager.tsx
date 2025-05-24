@@ -1,25 +1,26 @@
 "use client"
-import { useToast } from "@/components/ui/use-toast"
-import { useSubscription } from "@/liveblocks.config"
-import { useAudio } from "@/lib/audio-service.tsx" // Atualizar a extensão para .tsx
+import { useToast } from "@/hooks/use-toast"
+import { useAudio } from "@/lib/audio-service"
 
 export const NotificationManager = () => {
   const { toast } = useToast()
-  const { play } = useAudio()
+  const audioService = useAudio()
 
-  useSubscription(({ others }) => {
-    others.forEach((other) => {
-      if (other.presence?.notifications?.length) {
-        other.presence.notifications.forEach((notification) => {
-          toast({
-            title: notification.title,
-            description: notification.description,
-          })
-          play("notification")
-        })
-      }
+  // Por enquanto, vamos simplificar o componente removendo a dependência do Liveblocks
+  // que não está configurada neste projeto
+
+  const showNotification = (title: string, description: string) => {
+    toast({
+      title,
+      description,
     })
-  }, [])
 
+    if (audioService) {
+      audioService.play("notification")
+    }
+  }
+
+  // Este componente pode ser usado para gerenciar notificações globalmente
+  // Por enquanto, retorna null pois é apenas um gerenciador
   return null
 }
