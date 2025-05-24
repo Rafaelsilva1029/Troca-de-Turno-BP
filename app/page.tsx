@@ -10,7 +10,6 @@ import {
   FileIcon as FilePdf,
   FileSpreadsheet,
   Truck,
-  Moon,
   Plus,
   Save,
   Search,
@@ -30,21 +29,18 @@ import {
   Loader,
   Edit,
   BarChart3,
-  Sun,
+  ChevronDown,
 } from "lucide-react"
 
 import { PendenciaSection } from "@/components/pendencia-section"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Accordion } from "@/components/ui/accordion"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   fetchPendencias,
   savePendencias,
@@ -56,6 +52,9 @@ import { PendenciasLiberadas } from "@/components/pendencias-liberadas"
 import { DashboardCharts } from "@/components/dashboard-charts"
 import { ReminderSystem } from "@/components/reminder-system"
 import { CollapsibleSidebar } from "@/components/collapsible-sidebar"
+import { AnimatedHeader } from "@/components/animated-header"
+import { ParticleBackground } from "@/components/particle-background"
+import { WashingLubricationControl } from "@/components/washing-lubrication-control"
 
 import { format } from "date-fns"
 import * as XLSX from "xlsx"
@@ -367,42 +366,67 @@ export default function TrocaDeTurno() {
       return Object.entries(pendenciasData).map(([category, items]) => {
         const categoryName = getCategoryName(category)
         return (
-          <div key={category} className="mb-6">
-            <h3 className="text-lg font-semibold tracking-wide text-green-500 mb-2 border-l-4 border-green-500 pl-2">
+          <div key={category} className="mb-8 bg-slate-800/70 rounded-lg border border-slate-700/50 overflow-hidden">
+            <h3 className="text-lg font-semibold tracking-wide text-green-400 p-3 bg-slate-800/90 border-b border-slate-700/50 flex items-center">
+              <div className="w-1 h-6 bg-green-500 mr-2 rounded-full"></div>
               {categoryName}
+              <Badge className="ml-2 bg-slate-700/50 text-slate-300 border-slate-600/50">
+                {items.length} {items.length === 1 ? "item" : "itens"}
+              </Badge>
             </h3>
-            {items.length > 0 ? (
-              <ul className="list-disc pl-5 space-y-1">
-                {items.map((item, index) => (
-                  <li key={index} className="text-slate-300">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-slate-400 italic">Nenhuma pendência registrada</p>
-            )}
+            <div className="p-3">
+              {items.length > 0 ? (
+                <ul className="space-y-2">
+                  {items.map((item, index) => (
+                    <li
+                      key={index}
+                      className="text-slate-300 bg-slate-800/30 p-2 rounded-md border border-slate-700/30 hover:bg-slate-800/50 transition-colors"
+                    >
+                      <div className="flex items-start">
+                        <div className="mt-1 mr-2 h-2 w-2 rounded-full bg-green-500 flex-shrink-0"></div>
+                        <span>{item}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-slate-400 italic p-2">Nenhuma pendência registrada</p>
+              )}
+            </div>
           </div>
         )
       })
     } else {
       const items = pendenciasData[selectedCategory] || []
+      const categoryName = getCategoryName(selectedCategory)
       return (
-        <div>
-          <h3 className="text-lg font-semibold tracking-wide text-green-500 mb-2 border-l-4 border-green-500 pl-2">
-            {getCategoryName(selectedCategory)}
+        <div className="mb-8 bg-slate-800/70 rounded-lg border border-slate-700/50 overflow-hidden">
+          <h3 className="text-lg font-semibold tracking-wide text-green-400 p-3 bg-slate-800/90 border-b border-slate-700/50 flex items-center">
+            <div className="w-1 h-6 bg-green-500 mr-2 rounded-full"></div>
+            {categoryName}
+            <Badge className="ml-2 bg-slate-700/50 text-slate-300 border-slate-600/50">
+              {items.length} {items.length === 1 ? "item" : "itens"}
+            </Badge>
           </h3>
-          {items.length > 0 ? (
-            <ul className="list-disc pl-5 space-y-1">
-              {items.map((item, index) => (
-                <li key={index} className="text-slate-300">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-slate-400 italic">Nenhuma pendência registrada</p>
-          )}
+          <div className="p-3">
+            {items.length > 0 ? (
+              <ul className="space-y-2">
+                {items.map((item, index) => (
+                  <li
+                    key={index}
+                    className="text-slate-300 bg-slate-800/30 p-2 rounded-md border border-slate-700/30 hover:bg-slate-800/50 transition-colors"
+                  >
+                    <div className="flex items-start">
+                      <div className="mt-1 mr-2 h-2 w-2 rounded-full bg-green-500 flex-shrink-0"></div>
+                      <span>{item}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-slate-400 italic p-2">Nenhuma pendência registrada</p>
+            )}
+          </div>
         </div>
       )
     }
@@ -979,10 +1003,11 @@ export default function TrocaDeTurno() {
   const navigationItems = [
     { id: "programacao", label: "Programação do Turno", icon: Calendar },
     { id: "pendencias", label: "Pendências Oficina", icon: Tool },
-    { id: "veiculos", label: "Veículos Logística", icon: Truck },
+    { id: "veiculos", label: "Equipamentos Logística", icon: Truck },
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "liberados", label: "Equipamentos Liberados", icon: CheckCircle },
-    { id: "relatorios", label: "Relatórios", icon: FileText }, // Add this new item
+    { id: "lavagem", label: "Lavagem e Lubrificação", icon: Activity },
+    { id: "relatorios", label: "Relatórios", icon: FileText },
   ]
 
   // Handle sidebar item click
@@ -995,7 +1020,7 @@ export default function TrocaDeTurno() {
       className={`${theme} min-h-screen bg-gradient-to-br from-black to-slate-900 text-slate-100 relative overflow-hidden`}
     >
       {/* Background particle effect */}
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full opacity-30" />
+      <ParticleBackground />
 
       {/* Loading overlay */}
       {isLoading && (
@@ -1015,57 +1040,10 @@ export default function TrocaDeTurno() {
 
       <div className="container mx-auto px-2 sm:px-4 relative z-10">
         {/* Header */}
-        <header className="flex flex-col md:flex-row items-center justify-between py-4 border-b border-slate-700/50 mb-6">
-          <div className="flex flex-col items-center md:items-start md:flex-row md:space-x-3 mb-4 md:mb-0">
-            <div className="flex flex-col items-center md:items-start">
-              <img
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo_rodape%20%282%29-tnqjz4Nqo9rMCqM9pVmARDluiXmuyd.png"
-                alt="Logo Branco Peres"
-                className="h-12 w-auto object-contain mb-2"
-              />
-              <span className="text-xl font-bold tracking-wider bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                TROCA DE TURNO
-              </span>
-            </div>
-            <div className="absolute -bottom-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-pulse border border-slate-800 md:relative md:bottom-auto md:right-auto md:ml-2 md:mt-6"></div>
-          </div>
+        <AnimatedHeader theme={theme} toggleTheme={toggleTheme} currentTime={currentTime} />
 
-          <div className="flex items-center space-x-6">
-            <div className="hidden md:flex items-center space-x-1 bg-slate-800/50 rounded-full px-3 py-1.5 border border-slate-700/50 backdrop-blur-sm">
-              <Search className="h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Buscar..."
-                className="bg-transparent border-none focus:outline-none text-sm w-40 placeholder:text-slate-500"
-              />
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={toggleTheme}
-                      className="text-slate-400 hover:text-slate-100"
-                    >
-                      {theme === "dark" ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Alternar tema</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-
-              <Avatar>
-                <AvatarImage src="/abstract-geometric-shapes.png" alt="Usuário" />
-                <AvatarFallback className="bg-slate-700 text-green-500">BP</AvatarFallback>
-              </Avatar>
-            </div>
-          </div>
-        </header>
+        {/* Espaçador para compensar o header fixo */}
+        <div className="h-24"></div>
 
         {/* Main content */}
         <div className="grid grid-cols-12 gap-6">
@@ -1345,107 +1323,137 @@ export default function TrocaDeTurno() {
                     <CardHeader className="pb-2">
                       <CardTitle className="text-slate-100 flex items-center text-base font-semibold tracking-wide">
                         <Truck className="mr-2 h-5 w-5 text-green-500" />
-                        Veículos Logística
+                        Equipamentos Logística
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       {/* Vehicle Categories Tabs */}
-                      <Tabs defaultValue={activeVehicleCategory} className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1">
-                          {vehicleCategories.map((category) => (
-                            <TabsTrigger
-                              key={category.id}
-                              value={category.id}
-                              onClick={() => setActiveVehicleCategory(category.id)}
-                              className={`flex items-center justify-between p-3 rounded transition-all ${
-                                activeVehicleCategory === category.id
-                                  ? "bg-gradient-to-r from-green-600/80 to-green-700/80 text-white shadow-lg"
-                                  : "hover:bg-slate-700/50 text-slate-300"
-                              }`}
-                            >
-                              <div className="flex items-center">
+                      <div className="mb-4">
+                        <div className="overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800">
+                          <div className="flex space-x-1 min-w-max">
+                            {vehicleCategories.map((category) => (
+                              <Button
+                                key={category.id}
+                                variant={activeVehicleCategory === category.id ? "default" : "outline"}
+                                className={`flex items-center space-x-2 ${
+                                  activeVehicleCategory === category.id
+                                    ? "bg-gradient-to-r from-green-600/80 to-green-700/80 text-white"
+                                    : "bg-slate-800/50 text-slate-300 hover:bg-slate-700/50"
+                                }`}
+                                onClick={() => setActiveVehicleCategory(category.id)}
+                              >
                                 <div
-                                  className={`p-2 rounded-full mr-3 ${
+                                  className={`p-1 rounded-full ${
                                     activeVehicleCategory === category.id ? "bg-green-500/20" : "bg-slate-700/50"
                                   }`}
                                 >
-                                  <category.icon
-                                    className={`h-5 w-5 ${
+                                  {React.createElement(category.icon, {
+                                    className: `h-4 w-4 ${
                                       activeVehicleCategory === category.id ? "text-green-400" : "text-slate-400"
-                                    }`}
-                                  />
+                                    }`,
+                                  })}
                                 </div>
-                                <span className="font-medium">{category.label}</span>
-                              </div>
-                              {activeVehicleCategory === category.id && (
-                                <ChevronRight className="h-4 w-4 text-green-300" />
-                              )}
-                            </TabsTrigger>
-                          ))}
-                        </TabsList>
-                        {/* Vehicle List */}
-                        <TabsContent value={activeVehicleCategory}>
-                          <div className="space-y-4">
-                            {filteredVehicles.map((vehicle) => (
-                              <div
-                                key={vehicle.id}
-                                className="bg-slate-800/50 rounded-md p-4 border border-slate-700/50"
-                              >
-                                <div className="flex justify-between items-start mb-2">
-                                  <div className="flex items-center space-x-2">
-                                    <span className="text-sm text-slate-300">{vehicle.frota}</span>
-                                    <span className="text-sm text-slate-300">{vehicle.placa}</span>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 text-slate-500 hover:text-green-500"
-                                      onClick={() => editVehicle(vehicle)}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6 text-slate-500 hover:text-red-500"
-                                      onClick={() => deleteVehicle(vehicle.id)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                                <div className="flex flex-col space-y-2">
-                                  <div className="flex items-center space-x-2">
-                                    <span className="text-sm text-slate-400">Modelo:</span>
-                                    <span className="text-sm text-slate-300">{vehicle.modelo}</span>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <span className="text-sm text-slate-400">Ano:</span>
-                                    <span className="text-sm text-slate-300">{vehicle.ano}</span>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <span className="text-sm text-slate-400">Status:</span>
-                                    <span className="text-sm text-slate-300">{vehicle.status}</span>
-                                  </div>
-                                  {vehicle.motorista && (
-                                    <div className="flex items-center space-x-2">
-                                      <span className="text-sm text-slate-400">Motorista:</span>
-                                      <span className="text-sm text-slate-300">{vehicle.motorista}</span>
-                                    </div>
-                                  )}
-                                  {vehicle.observacoes && (
-                                    <div className="flex items-center space-x-2">
-                                      <span className="text-sm text-slate-400">Observações:</span>
-                                      <span className="text-sm text-slate-300">{vehicle.observacoes}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
+                                <span>{category.label}</span>
+                              </Button>
                             ))}
                           </div>
-                        </TabsContent>
-                      </Tabs>
+                        </div>
+
+                        {/* Search and Add buttons */}
+                        <div className="flex justify-between items-center mb-4">
+                          <div className="relative w-full max-w-sm">
+                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <input
+                              type="text"
+                              placeholder="Buscar equipamento..."
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
+                              className="pl-8 pr-4 py-2 w-full bg-slate-800/50 border border-slate-700/50 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500/50"
+                            />
+                          </div>
+                          <Button onClick={addVehicle} className="bg-green-600 hover:bg-green-700 ml-2">
+                            <Plus className="h-4 w-4 mr-1" /> Adicionar
+                          </Button>
+                        </div>
+
+                        {/* Vehicle List with scrollable container */}
+                        <div className="bg-slate-800/30 rounded-md border border-slate-700/50 overflow-hidden">
+                          <div className="max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800/50 p-1">
+                            {filteredVehicles.length > 0 ? (
+                              <div className="space-y-2 p-2">
+                                {filteredVehicles.map((vehicle) => (
+                                  <div
+                                    key={vehicle.id}
+                                    className="bg-slate-800/70 rounded-md p-4 border border-slate-700/50 hover:bg-slate-800 transition-colors"
+                                  >
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="flex items-center space-x-2">
+                                        <Badge
+                                          variant="outline"
+                                          className="bg-slate-700/50 text-green-400 border-green-500/50"
+                                        >
+                                          {vehicle.frota}
+                                        </Badge>
+                                        <span className="text-sm text-slate-300">{vehicle.placa}</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 text-slate-500 hover:text-green-500"
+                                          onClick={() => editVehicle(vehicle)}
+                                        >
+                                          <Edit className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 text-slate-500 hover:text-red-500"
+                                          onClick={() => deleteVehicle(vehicle.id)}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                      <div className="flex items-center space-x-2">
+                                        <span className="text-xs text-slate-400">Modelo:</span>
+                                        <span className="text-xs text-slate-300">{vehicle.modelo}</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <span className="text-xs text-slate-400">Ano:</span>
+                                        <span className="text-xs text-slate-300">{vehicle.ano}</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <span className="text-xs text-slate-400">Status:</span>
+                                        <span className="text-xs text-slate-300">{vehicle.status}</span>
+                                      </div>
+                                      {vehicle.motorista && (
+                                        <div className="flex items-center space-x-2">
+                                          <span className="text-xs text-slate-400">Motorista:</span>
+                                          <span className="text-xs text-slate-300">{vehicle.motorista}</span>
+                                        </div>
+                                      )}
+                                      {vehicle.observacoes && (
+                                        <div className="flex items-center space-x-2 col-span-1 md:col-span-2">
+                                          <span className="text-xs text-slate-400">Observações:</span>
+                                          <span className="text-xs text-slate-300">{vehicle.observacoes}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+                                <Truck className="h-10 w-10 mb-2 opacity-20" />
+                                <p>Nenhum equipamento encontrado</p>
+                                <p className="text-sm">Tente ajustar sua busca ou adicione um novo equipamento</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </CardContent>
                     <CardFooter className="border-t border-slate-700/50 pt-4 flex justify-between">
                       <div className="flex items-center space-x-2">
@@ -1523,6 +1531,9 @@ export default function TrocaDeTurno() {
                   </Card>
                 )}
 
+                {/* Lavagem e Lubrificação */}
+                {activeTab === "lavagem" && <WashingLubricationControl />}
+
                 {/* Relatórios */}
                 {activeTab === "relatorios" && (
                   <Card className="bg-slate-900/50 border-slate-700/50 backdrop-blur-sm">
@@ -1591,8 +1602,8 @@ export default function TrocaDeTurno() {
         <DialogTrigger asChild>
           <Button variant="outline">Abrir Relatório</Button>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[625px] bg-slate-900/80 border-slate-700/50 backdrop-blur-sm text-slate-100">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[625px] bg-slate-900/80 border-slate-700/50 backdrop-blur-sm text-slate-100 max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-xl flex items-center">
               <FileText className="mr-2 h-5 w-5 text-green-500" />
               Relatório de Pendências
@@ -1604,28 +1615,38 @@ export default function TrocaDeTurno() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="my-4 p-4 bg-slate-800/50 rounded-md border border-slate-700/50">
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center space-x-3">
-                <img
-                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/1000231524-removebg-preview-P9vpiTQfd0xkSaNXEMRPfob1VyT0gH.png"
-                  alt="Logo Branco Peres"
-                  className="h-12 w-auto object-contain"
-                />
-                <div className="flex flex-col">
-                  <h2 className="text-lg font-bold tracking-wider bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                    RELATÓRIO DE PENDÊNCIAS
-                  </h2>
-                  <span className="text-xs font-semibold tracking-wide text-yellow-400">BRANCO PERES AGRIBUSINESS</span>
-                </div>
-              </div>
-              <div className="text-sm text-slate-400">Gerado em: {new Date().toLocaleString("pt-BR")}</div>
+          <div className="relative flex-grow my-4 overflow-hidden rounded-md border border-slate-700/50">
+            {/* Indicador de rolagem */}
+            <div className="absolute right-1 top-1 z-10 bg-slate-800/80 backdrop-blur-sm rounded-full p-1 shadow-md border border-slate-700/50">
+              <ChevronDown className="h-4 w-4 text-green-400 animate-bounce" />
             </div>
 
-            <div className="space-y-4">{generateReportContent()}</div>
+            {/* Conteúdo com rolagem */}
+            <div className="h-[calc(70vh-180px)] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800/50 p-4 bg-slate-800/50">
+              <div className="flex justify-between items-center mb-6 sticky top-0 bg-slate-800/90 backdrop-blur-sm p-3 rounded-md border border-slate-700/50 shadow-md z-10">
+                <div className="flex items-center space-x-3">
+                  <img
+                    src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/1000231524-removebg-preview-P9vpiTQfd0xkSaNXEMRPfob1VyT0gH.png"
+                    alt="Logo Branco Peres"
+                    className="h-12 w-auto object-contain"
+                  />
+                  <div className="flex flex-col">
+                    <h2 className="text-lg font-bold tracking-wider bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                      RELATÓRIO DE PENDÊNCIAS
+                    </h2>
+                    <span className="text-xs font-semibold tracking-wide text-yellow-400">
+                      BRANCO PERES AGRIBUSINESS
+                    </span>
+                  </div>
+                </div>
+                <div className="text-sm text-slate-400">Gerado em: {new Date().toLocaleString("pt-BR")}</div>
+              </div>
+
+              <div className="space-y-4 pb-4">{generateReportContent()}</div>
+            </div>
           </div>
 
-          <div className="flex flex-col space-y-4">
+          <div className="flex flex-col space-y-4 flex-shrink-0">
             <div className="flex items-center space-x-4">
               <Label className="w-32">Tipo de Relatório:</Label>
               <Select value={reportType} onValueChange={setReportType}>
@@ -1658,7 +1679,7 @@ export default function TrocaDeTurno() {
             )}
           </div>
 
-          <DialogFooter className="flex justify-end space-x-2 mt-4">
+          <DialogFooter className="flex justify-end space-x-2 mt-4 flex-shrink-0">
             <Button
               variant="outline"
               className="bg-green-800/30 text-green-400 hover:bg-green-800/50 border-green-700/50"
