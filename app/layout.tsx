@@ -1,7 +1,6 @@
 import type React from "react"
 import { ThemeProvider } from "@/components/theme-provider"
 import { NotificationProvider } from "@/components/notification-manager"
-import { AudioProvider } from "@/lib/audio-service"
 import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
@@ -14,12 +13,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ThemeProvider attribute="class" defaultTheme="dark">
-          <AudioProvider>
-            <NotificationProvider>
-              {children}
-              <Toaster />
-            </NotificationProvider>
-          </AudioProvider>
+          <NotificationProvider>
+            {children}
+            <Toaster />
+          </NotificationProvider>
         </ThemeProvider>
       </body>
     </html>
@@ -27,5 +24,5 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 
 export const metadata = {
-      generator: 'v0.dev'
-    };
+  generator: "v0.dev",
+}

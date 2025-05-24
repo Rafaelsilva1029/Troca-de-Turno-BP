@@ -3,7 +3,6 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
 import { TruckNotification } from "./truck-notification"
-import { useAudio } from "@/lib/audio-service"
 
 export type NotificationType = "info" | "success" | "alert" | "error"
 
@@ -19,8 +18,6 @@ export interface NotificationProps {
   type: NotificationType
   dueTime?: string
   autoCloseTime?: number
-  playSound?: boolean
-  soundId?: string
   onAction?: (id: string, action: "complete" | "snooze" | "dismiss") => void
 }
 
@@ -34,31 +31,22 @@ const NotificationContext = createContext<NotificationContextType | null>(null)
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<(NotificationProps & { id: string })[]>([])
-  const audioService = useAudio()
 
-  const showNotification = useCallback(
-    (notification: NotificationProps) => {
-      const id = notification.id || Math.random().toString(36).substring(2, 9)
-      const newNotification = { ...notification, id }
+  const showNotification = useCallback((notification: NotificationProps) => {
+    const id = notification.id || Math.random().toString(36).substring(2, 9)
+    const newNotification = { ...notification, id }
 
-      setNotifications((prev) => [...prev, newNotification])
+    setNotifications((prev) => [...prev, newNotification])
 
-      // Reproduzir som se solicitado
-      if (notification.playSound && audioService && notification.soundId) {
-        audioService.play(notification.soundId)
-      }
+    // Auto-fechar após o tempo especificado
+    if (notification.autoCloseTime) {
+      setTimeout(() => {
+        dismissNotification(id)
+      }, notification.autoCloseTime)
+    }
 
-      // Auto-fechar após o tempo especificado
-      if (notification.autoCloseTime) {
-        setTimeout(() => {
-          dismissNotification(id)
-        }, notification.autoCloseTime)
-      }
-
-      return id
-    },
-    [audioService],
-  )
+    return id
+  }, [])
 
   const dismissNotification = useCallback((id: string) => {
     setNotifications((prev) => prev.filter((notification) => notification.id !== id))

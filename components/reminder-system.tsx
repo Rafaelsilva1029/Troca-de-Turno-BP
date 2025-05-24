@@ -169,7 +169,6 @@ export function ReminderSystem() {
             message: `${reminder.title} vence em 1 hora`,
             type: "alert",
             dueTime: `Vence em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
-            playSound: false, // ÁUDIO REMOVIDO
             autoCloseTime: 15000,
             onAction: (id, action) => {
               if (action === "complete") {
@@ -196,7 +195,6 @@ export function ReminderSystem() {
             message: reminder.title,
             type: "alert",
             dueTime: `Venceu em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
-            playSound: false, // ÁUDIO REMOVIDO
             onAction: (id, action) => {
               if (action === "complete") {
                 markAsCompleted(reminder.id)
@@ -224,7 +222,6 @@ export function ReminderSystem() {
             message: reminder.title,
             type: "info",
             dueTime: `Vence em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
-            playSound: false, // ÁUDIO REMOVIDO
             onAction: (id, action) => {
               if (action === "complete") {
                 markAsCompleted(reminder.id)

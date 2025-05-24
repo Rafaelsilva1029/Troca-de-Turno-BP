@@ -1,11 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Check, Clock, Bell, Volume2, VolumeX } from "lucide-react"
+import { X, Check, Clock, Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { NotificationType } from "./notification-manager"
 import { TruckAnimation } from "./truck-animation"
-import { useAudio } from "@/lib/audio-service"
 
 interface TruckNotificationProps {
   id: string
@@ -15,22 +14,10 @@ interface TruckNotificationProps {
   dueTime?: string
   onDismiss: () => void
   onAction: (action: "complete" | "snooze" | "dismiss") => void
-  soundId?: string
 }
 
-export function TruckNotification({
-  id,
-  title,
-  message,
-  type,
-  dueTime,
-  onDismiss,
-  onAction,
-  soundId,
-}: TruckNotificationProps) {
+export function TruckNotification({ id, title, message, type, dueTime, onDismiss, onAction }: TruckNotificationProps) {
   const [isVisible, setIsVisible] = useState(false)
-  const [isMuted, setIsMuted] = useState(false)
-  const audioService = useAudio()
 
   useEffect(() => {
     // Animar a entrada da notificação
@@ -55,17 +42,6 @@ export function TruckNotification({
     setTimeout(() => {
       onAction(action)
     }, 300)
-  }
-
-  const toggleMute = () => {
-    if (audioService && soundId) {
-      if (isMuted) {
-        audioService.play(soundId)
-      } else {
-        audioService.stop(soundId)
-      }
-      setIsMuted(!isMuted)
-    }
   }
 
   // Determinar a cor com base no tipo de notificação
@@ -105,16 +81,6 @@ export function TruckNotification({
                   {title}
                 </h3>
                 <div className="flex space-x-1 ml-2">
-                  {soundId && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-5 w-5 text-white/70 hover:text-white hover:bg-white/10"
-                      onClick={toggleMute}
-                    >
-                      {isMuted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
-                    </Button>
-                  )}
                   <Button
                     size="icon"
                     variant="ghost"
