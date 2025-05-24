@@ -1,20 +1,21 @@
 "use client"
+
 import { useState, useEffect } from "react"
-import { X, CheckCircle, AlertTriangle, Info, AlertCircle, Clock } from "lucide-react"
+import { X, Check, Clock, Bell, Volume2, VolumeX } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import type { NotificationType } from "./notification-manager"
+import { TruckAnimation } from "./truck-animation"
+import { useAudio } from "@/lib/audio-service"
 
-export type NotificationType = "success" | "error" | "warning" | "info" | "alert"
-
-export interface TruckNotificationProps {
+interface TruckNotificationProps {
   id: string
   title: string
   message: string
   type: NotificationType
   dueTime?: string
-  autoCloseTime?: number
-  onDismiss?: () => void
-  onAction?: (action: "complete" | "snooze" | "dismiss") => void
+  onDismiss: () => void
+  onAction: (action: "complete" | "snooze" | "dismiss") => void
+  soundId?: string
 }
 
 export function TruckNotification({
@@ -23,180 +24,138 @@ export function TruckNotification({
   message,
   type,
   dueTime,
-  autoCloseTime,
   onDismiss,
   onAction,
+  soundId,
 }: TruckNotificationProps) {
-  const [isVisible, setIsVisible] = useState(true)
-  const [timeLeft, setTimeLeft] = useState(autoCloseTime || 0)
+  const [isVisible, setIsVisible] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const audioService = useAudio()
 
-  // Auto-close timer
   useEffect(() => {
-    if (autoCloseTime && autoCloseTime > 0) {
-      const timer = setTimeout(() => {
-        handleDismiss()
-      }, autoCloseTime)
+    // Animar a entrada da notificação
+    const timer = setTimeout(() => {
+      setIsVisible(true)
+    }, 100)
 
-      return () => clearTimeout(timer)
-    }
-  }, [autoCloseTime])
-
-  // Countdown timer for display
-  useEffect(() => {
-    if (autoCloseTime && autoCloseTime > 0) {
-      const interval = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1000) {
-            clearInterval(interval)
-            return 0
-          }
-          return prev - 1000
-        })
-      }, 1000)
-
-      return () => clearInterval(interval)
-    }
-  }, [autoCloseTime])
+    return () => clearTimeout(timer)
+  }, [])
 
   const handleDismiss = () => {
+    // Animar a saída da notificação
     setIsVisible(false)
-    if (onDismiss) {
+    setTimeout(() => {
       onDismiss()
-    }
+    }, 300)
   }
 
   const handleAction = (action: "complete" | "snooze" | "dismiss") => {
-    if (onAction) {
+    // Animar a saída da notificação
+    setIsVisible(false)
+    setTimeout(() => {
       onAction(action)
-    }
-    if (action === "dismiss") {
-      handleDismiss()
+    }, 300)
+  }
+
+  const toggleMute = () => {
+    if (audioService && soundId) {
+      if (isMuted) {
+        audioService.play(soundId)
+      } else {
+        audioService.stop(soundId)
+      }
+      setIsMuted(!isMuted)
     }
   }
 
-  const getIcon = () => {
+  // Determinar a cor com base no tipo de notificação
+  const getTypeStyles = () => {
     switch (type) {
+      case "info":
+        return "bg-blue-900/80 border-blue-700"
       case "success":
-        return <CheckCircle className="h-5 w-5 text-green-400" />
-      case "error":
-        return <AlertCircle className="h-5 w-5 text-red-400" />
-      case "warning":
-        return <AlertTriangle className="h-5 w-5 text-amber-400" />
+        return "bg-green-900/80 border-green-700"
       case "alert":
-        return <AlertTriangle className="h-5 w-5 text-red-400" />
+        return "bg-amber-900/80 border-amber-700"
+      case "error":
+        return "bg-red-900/80 border-red-700"
       default:
-        return <Info className="h-5 w-5 text-blue-400" />
+        return "bg-slate-900/80 border-slate-700"
     }
   }
-
-  const getBackgroundColor = () => {
-    switch (type) {
-      case "success":
-        return "bg-green-900/90 border-green-700/50"
-      case "error":
-        return "bg-red-900/90 border-red-700/50"
-      case "warning":
-        return "bg-amber-900/90 border-amber-700/50"
-      case "alert":
-        return "bg-red-900/90 border-red-700/50"
-      default:
-        return "bg-blue-900/90 border-blue-700/50"
-    }
-  }
-
-  const getProgressColor = () => {
-    switch (type) {
-      case "success":
-        return "bg-green-500"
-      case "error":
-        return "bg-red-500"
-      case "warning":
-        return "bg-amber-500"
-      case "alert":
-        return "bg-red-500"
-      default:
-        return "bg-blue-500"
-    }
-  }
-
-  if (!isVisible) {
-    return null
-  }
-
-  const progressPercentage = autoCloseTime ? ((autoCloseTime - timeLeft) / autoCloseTime) * 100 : 0
 
   return (
-    <Card
-      className={`${getBackgroundColor()} backdrop-blur-sm text-white shadow-lg animate-in slide-in-from-right-full duration-300 relative overflow-hidden max-w-sm`}
+    <div
+      className={`transform transition-all duration-300 ease-in-out ${
+        isVisible ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
+      }`}
     >
-      {/* Progress bar */}
-      {autoCloseTime && autoCloseTime > 0 && (
-        <div className="absolute top-0 left-0 h-1 bg-white/20 w-full">
-          <div
-            className={`h-full ${getProgressColor()} transition-all duration-1000 ease-linear`}
-            style={{ width: `${progressPercentage}%` }}
-          />
-        </div>
-      )}
-
-      <CardContent className="p-4">
-        <div className="flex items-start space-x-3">
-          <div className="flex-shrink-0 mt-0.5">{getIcon()}</div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-1">
-              <h4 className="text-sm font-semibold text-white truncate">{title}</h4>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-white/70 hover:text-white hover:bg-white/10 flex-shrink-0"
-                onClick={handleDismiss}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+      <div
+        className={`rounded-lg border backdrop-blur-sm shadow-lg overflow-hidden ${getTypeStyles()} w-full max-w-md`}
+      >
+        <div className="p-4">
+          <div className="flex items-start">
+            <div className="flex-shrink-0 mr-3">
+              <TruckAnimation type={type} />
             </div>
-
-            <p className="text-sm text-white/90 mb-2 leading-relaxed">{message}</p>
-
-            {dueTime && (
-              <div className="flex items-center mb-3">
-                <Clock className="h-3 w-3 text-white/60 mr-1 flex-shrink-0" />
-                <span className="text-xs text-white/70">{dueTime}</span>
+            <div className="flex-1 pt-0.5">
+              <div className="flex justify-between items-start">
+                <h3 className="text-sm font-medium text-white flex items-center">
+                  <Bell className="h-4 w-4 mr-1" />
+                  {title}
+                </h3>
+                <div className="flex space-x-1 ml-2">
+                  {soundId && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-5 w-5 text-white/70 hover:text-white hover:bg-white/10"
+                      onClick={toggleMute}
+                    >
+                      {isMuted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
+                    </Button>
+                  )}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-5 w-5 text-white/70 hover:text-white hover:bg-white/10"
+                    onClick={handleDismiss}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
-            )}
-
-            {/* Action buttons */}
-            {onAction && (
-              <div className="flex space-x-2">
+              <p className="mt-1 text-sm text-white/90">{message}</p>
+              {dueTime && (
+                <p className="mt-1 text-xs text-white/70 flex items-center">
+                  <Clock className="h-3 w-3 mr-1" />
+                  {dueTime}
+                </p>
+              )}
+              <div className="mt-3 flex space-x-2">
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-7 text-xs bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/30"
+                  variant="secondary"
+                  className="bg-white/10 hover:bg-white/20 text-white border-none text-xs py-1 h-7"
                   onClick={() => handleAction("complete")}
                 >
-                  <CheckCircle className="h-3 w-3 mr-1" />
+                  <Check className="h-3 w-3 mr-1" />
                   Concluir
                 </Button>
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-7 text-xs bg-white/10 border-white/20 text-white hover:bg-white/20 hover:border-white/30"
+                  variant="secondary"
+                  className="bg-white/10 hover:bg-white/20 text-white border-none text-xs py-1 h-7"
                   onClick={() => handleAction("snooze")}
                 >
                   <Clock className="h-3 w-3 mr-1" />
                   Adiar
                 </Button>
               </div>
-            )}
-
-            {/* Auto-close countdown */}
-            {autoCloseTime && timeLeft > 0 && (
-              <div className="mt-2 text-xs text-white/50">Fecha automaticamente em {Math.ceil(timeLeft / 1000)}s</div>
-            )}
+            </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
-
-export default TruckNotification

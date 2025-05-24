@@ -19,6 +19,8 @@ import {
   AlertCircle,
   Info,
   CheckCircle2,
+  Volume2,
+  VolumeX,
   Download,
   Save,
   Archive,
@@ -43,6 +45,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useNotifications } from "./notification-manager"
+import { useAudio } from "@/lib/audio-service"
+import { Switch } from "@/components/ui/switch"
 import {
   type Reminder,
   type ReminderPriority,
@@ -64,6 +68,7 @@ export function ReminderSystem() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingReminder, setEditingReminder] = useState<Reminder | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [soundEnabled, setSoundEnabled] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isSyncingDatabase, setIsSyncingDatabase] = useState(false)
@@ -71,6 +76,7 @@ export function ReminderSystem() {
   const [databaseError, setDatabaseError] = useState<string | null>(null)
   const [pendingChanges, setPendingChanges] = useState(false)
   const { showNotification } = useNotifications()
+  const audioService = useAudio()
 
   // Carregar lembretes do banco de dados
   const loadRemindersFromDatabase = useCallback(async () => {
@@ -151,7 +157,7 @@ export function ReminderSystem() {
     }
   }, [pendingChanges, isSaving, reminders])
 
-  // Verificar lembretes e enviar notificações (SEM ÁUDIO)
+  // Verificar lembretes e enviar notificações
   useEffect(() => {
     const checkReminders = () => {
       const now = new Date()
@@ -169,12 +175,14 @@ export function ReminderSystem() {
             message: `${reminder.title} vence em 1 hora`,
             type: "alert",
             dueTime: `Vence em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
-            autoCloseTime: 15000,
+            playSound: soundEnabled,
+            soundId: "truck-horn",
+            autoCloseTime: 15000, // Mais tempo para notificações importantes
             onAction: (id, action) => {
               if (action === "complete") {
                 markAsCompleted(reminder.id)
               } else if (action === "snooze") {
-                postponeReminder(reminder.id, 30)
+                postponeReminder(reminder.id, 30) // Adiar por 30 minutos
               }
             },
           })
@@ -195,11 +203,13 @@ export function ReminderSystem() {
             message: reminder.title,
             type: "alert",
             dueTime: `Venceu em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
+            playSound: soundEnabled,
+            soundId: "truck-horn",
             onAction: (id, action) => {
               if (action === "complete") {
                 markAsCompleted(reminder.id)
               } else if (action === "snooze") {
-                postponeReminder(reminder.id, 60)
+                postponeReminder(reminder.id, 60) // Adiar por 60 minutos
               }
             },
           })
@@ -222,11 +232,12 @@ export function ReminderSystem() {
             message: reminder.title,
             type: "info",
             dueTime: `Vence em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
+            playSound: false, // Sem som para notificações menos urgentes
             onAction: (id, action) => {
               if (action === "complete") {
                 markAsCompleted(reminder.id)
               } else if (action === "snooze") {
-                postponeReminder(reminder.id, 10)
+                postponeReminder(reminder.id, 10) // Adiar por 10 minutos
               }
             },
           })
@@ -245,7 +256,7 @@ export function ReminderSystem() {
     const interval = setInterval(checkReminders, 60000)
 
     return () => clearInterval(interval)
-  }, [reminders, showNotification])
+  }, [reminders, showNotification, soundEnabled])
 
   // Função para adiar um lembrete
   const postponeReminder = async (id: string, minutes: number) => {
@@ -286,6 +297,14 @@ export function ReminderSystem() {
         type: "error",
         autoCloseTime: 5000,
       })
+    }
+  }
+
+  // Função para alternar o som
+  const toggleSound = () => {
+    setSoundEnabled(!soundEnabled)
+    if (audioService) {
+      audioService.setMuted(!soundEnabled)
     }
   }
 
@@ -734,6 +753,17 @@ export function ReminderSystem() {
             )}
           </CardTitle>
           <div className="flex items-center gap-2">
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-slate-400 hover:text-slate-100"
+                onClick={toggleSound}
+                title={soundEnabled ? "Desativar sons" : "Ativar sons"}
+              >
+                {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              </Button>
+            </div>
             <Button
               onClick={() => {
                 setEditingReminder(null)
@@ -1077,39 +1107,49 @@ export function ReminderSystem() {
             </span>
           )}
         </div>
-        <div className="flex space-x-2">
-          <Button
-            className="bg-blue-600 hover:bg-blue-700"
-            onClick={loadRemindersFromDatabase}
-            disabled={isSyncingDatabase}
-          >
-            {isSyncingDatabase ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Sincronizando...
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4 mr-2" /> Sincronizar
-              </>
-            )}
-          </Button>
-          <Button
-            className="bg-green-600 hover:bg-green-700"
-            onClick={saveRemindersToDatabase}
-            disabled={isSaving || !pendingChanges}
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" /> Salvar Alterações
-              </>
-            )}
-          </Button>
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <span className="text-xs text-slate-500">Sons de notificação:</span>
+            <Switch
+              checked={soundEnabled}
+              onCheckedChange={setSoundEnabled}
+              className="data-[state=checked]:bg-green-500"
+            />
+          </div>
+          <div className="flex space-x-2">
+            <Button
+              className="bg-blue-600 hover:bg-blue-700"
+              onClick={loadRemindersFromDatabase}
+              disabled={isSyncingDatabase}
+            >
+              {isSyncingDatabase ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" /> Sincronizar
+                </>
+              )}
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              onClick={saveRemindersToDatabase}
+              disabled={isSaving || !pendingChanges}
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" /> Salvar Alterações
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </CardFooter>
 

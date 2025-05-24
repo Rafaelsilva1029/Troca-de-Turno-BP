@@ -54,7 +54,6 @@ import { ReminderSystem } from "@/components/reminder-system"
 import { CollapsibleSidebar } from "@/components/collapsible-sidebar"
 import { AnimatedHeader } from "@/components/animated-header"
 import { ParticleBackground } from "@/components/particle-background"
-import { WashingLubricationControl } from "@/components/washing-lubrication-control"
 
 import { format } from "date-fns"
 import * as XLSX from "xlsx"
@@ -786,6 +785,13 @@ export default function TrocaDeTurno() {
     }
   }
 
+  // Open report modal with specific category
+  // const openReportModal = (category: string) => {
+  //   setSelectedCategory(category)
+  //   setReportType("single")
+  //   setIsReportModalOpen(true)
+  // }
+
   // Open liberar pendência modal
   const openLiberarPendenciaModal = (category: string, description: string) => {
     setLiberarPendenciaProps({
@@ -999,8 +1005,7 @@ export default function TrocaDeTurno() {
     { id: "veiculos", label: "Equipamentos Logística", icon: Truck },
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "liberados", label: "Equipamentos Liberados", icon: CheckCircle },
-    { id: "lavagem", label: "Lavagem e Lubrificação", icon: Activity },
-    { id: "relatorios", label: "Relatórios", icon: FileText },
+    { id: "relatorios", label: "Relatórios", icon: FileText }, // Add this new item
   ]
 
   // Handle sidebar item click
@@ -1522,16 +1527,6 @@ export default function TrocaDeTurno() {
                       <PendenciasLiberadas />
                     </CardContent>
                   </Card>
-                )}
-
-                {/* Lavagem e Lubrificação */}
-                {activeTab === "lavagem" && (
-                  <WashingLubricationControl
-                    initialWashingTime={30}
-                    initialLubricationTime={45}
-                    onWashingTimeChange={(time) => console.log("Washing time changed:", time)}
-                    onLubricationTimeChange={(time) => console.log("Lubrication time changed:", time)}
-                  />
                 )}
 
                 {/* Relatórios */}
