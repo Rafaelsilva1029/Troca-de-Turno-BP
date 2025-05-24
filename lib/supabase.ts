@@ -55,6 +55,17 @@ export type VeiculoLogistica = {
   updated_at: string
 }
 
+// Tipo para as métricas do sistema
+export type SystemMetric = {
+  id?: number
+  cpu_usage: number
+  memory_usage: number
+  network_status: number
+  system_status: number
+  security_level: number
+  timestamp?: string
+}
+
 // Funções auxiliares para interagir com o Supabase
 export async function fetchPendencias() {
   const supabase = getSupabaseClient()
@@ -291,28 +302,209 @@ export async function logEvent(event: string, details: any) {
   return true
 }
 
+// Funções para métricas do sistema
+export async function fetchSystemMetrics(limit = 24) {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("system_metrics")
+    .select("*")
+    .order("timestamp", { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error("Error fetching system metrics:", error)
+    throw error
+  }
+
+  return data || []
+}
+
+export async function fetchLatestSystemMetric() {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("system_metrics")
+    .select("*")
+    .order("timestamp", { ascending: false })
+    .limit(1)
+    .single()
+
+  if (error) {
+    console.error("Error fetching latest system metric:", error)
+    // Se não houver métricas, retorne valores padrão em vez de lançar um erro
+    if (error.code === "PGRST116") {
+      return {
+        cpu_usage: 42,
+        memory_usage: 68,
+        network_status: 92,
+        system_status: 85,
+        security_level: 75,
+        timestamp: new Date().toISOString(),
+      }
+    }
+    throw error
+  }
+
+  return data
+}
+
+export async function saveSystemMetric(metric: SystemMetric) {
+  const supabase = getSupabaseClient()
+
+  const metricToSave = {
+    ...metric,
+    timestamp: new Date().toISOString(),
+  }
+
+  const { error } = await supabase.from("system_metrics").insert(metricToSave)
+
+  if (error) {
+    console.error("Error saving system metric:", error)
+    throw error
+  }
+
+  return true
+}
+
+// Tipo para alertas do sistema
+export type SystemAlert = {
+  id?: number
+  title: string
+  description: string
+  type: "info" | "warning" | "error" | "success" | "update"
+  timestamp?: string
+}
+
+// Funções para alertas do sistema
+export async function fetchSystemAlerts(limit = 10) {
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from("system_alerts")
+    .select("*")
+    .order("timestamp", { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error("Error fetching system alerts:", error)
+    throw error
+  }
+
+  return data || []
+}
+
+export async function saveSystemAlert(alert: SystemAlert) {
+  const supabase = getSupabaseClient()
+
+  const alertToSave = {
+    ...alert,
+    timestamp: new Date().toISOString(),
+  }
+
+  const { error } = await supabase.from("system_alerts").insert(alertToSave)
+
+  if (error) {
+    console.error("Error saving system alert:", error)
+    throw error
+  }
+
+  return true
+}
+
+export async function deleteSystemAlert(id: number) {
+  const supabase = getSupabaseClient()
+
+  const { error } = await supabase.from("system_alerts").delete().eq("id", id)
+
+  if (error) {
+    console.error("Error deleting system alert:", error)
+    throw error
+  }
+
+  return true
+}
+
 // Adicionar os tipos e funções para o sistema de lembretes após as funções existentes
 
 // Tipos para o sistema de lembretes
 export type ReminderPriority = "baixa" | "media" | "alta" | "urgente"
 export type ReminderStatus = "pendente" | "concluido" | "atrasado" | "em-andamento" | "arquivado"
 
+// Interface para mapear entre camelCase (código) e snake_case (banco de dados)
+interface ReminderDB {
+  id: string
+  title: string
+  description: string
+  due_date: string // Nome no banco de dados
+  due_time: string // Nome no banco de dados
+  priority: ReminderPriority
+  status: ReminderStatus
+  category: string
+  assigned_to?: string // Nome no banco de dados
+  created_at: string // Nome no banco de dados
+  updated_at: string // Nome no banco de dados
+  completed_at?: string // Nome no banco de dados
+  notified?: boolean
+  one_hour_notified?: boolean // Nome no banco de dados
+  user_id?: string // Nome no banco de dados
+}
+
 export type Reminder = {
   id: string
   title: string
   description: string
-  dueDate: string
-  dueTime: string
+  dueDate: string // Nome no código
+  dueTime: string // Nome no código
   priority: ReminderPriority
   status: ReminderStatus
   category: string
-  assignedTo?: string
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
+  assignedTo?: string // Nome no código
+  createdAt: string // Nome no código
+  updatedAt: string // Nome no código
+  completedAt?: string // Nome no código
   notified?: boolean
-  oneHourNotified?: boolean
-  userId?: string
+  oneHourNotified?: boolean // Nome no código
+  userId?: string // Nome no código
+}
+
+// Função para converter de snake_case (DB) para camelCase (código)
+function dbToReminderModel(dbReminder: ReminderDB): Reminder {
+  return {
+    id: dbReminder.id,
+    title: dbReminder.title,
+    description: dbReminder.description,
+    dueDate: dbReminder.due_date,
+    dueTime: dbReminder.due_time,
+    priority: dbReminder.priority as ReminderPriority,
+    status: dbReminder.status as ReminderStatus,
+    category: dbReminder.category,
+    assignedTo: dbReminder.assigned_to,
+    createdAt: dbReminder.created_at,
+    updatedAt: dbReminder.updated_at,
+    completedAt: dbReminder.completed_at,
+    notified: dbReminder.notified,
+    oneHourNotified: dbReminder.one_hour_notified,
+    userId: dbReminder.user_id,
+  }
+}
+
+// Função para converter de camelCase (código) para snake_case (DB)
+function reminderModelToDB(reminder: Reminder): ReminderDB {
+  return {
+    id: reminder.id,
+    title: reminder.title,
+    description: reminder.description,
+    due_date: reminder.dueDate,
+    due_time: reminder.dueTime,
+    priority: reminder.priority,
+    status: reminder.status,
+    category: reminder.category,
+    assigned_to: reminder.assignedTo,
+    created_at: reminder.createdAt,
+    updated_at: reminder.updatedAt,
+    completed_at: reminder.completedAt,
+    notified: reminder.notified,
+    one_hour_notified: reminder.oneHourNotified,
+    user_id: reminder.userId,
+  }
 }
 
 // Funções para interagir com os lembretes no Supabase
@@ -322,15 +514,16 @@ export async function fetchReminders() {
     .from("reminders")
     .select("*")
     .not("status", "eq", "arquivado")
-    .order("dueDate", { ascending: true })
-    .order("dueTime", { ascending: true })
+    .order("due_date", { ascending: true })
+    .order("due_time", { ascending: true })
 
   if (error) {
     console.error("Erro ao buscar lembretes:", error)
     throw error
   }
 
-  return data || []
+  // Converter de snake_case para camelCase
+  return (data || []).map(dbToReminderModel)
 }
 
 export async function fetchArchivedReminders() {
@@ -339,30 +532,31 @@ export async function fetchArchivedReminders() {
     .from("reminders")
     .select("*")
     .eq("status", "arquivado")
-    .order("completedAt", { ascending: false })
+    .order("completed_at", { ascending: false })
 
   if (error) {
     console.error("Erro ao buscar lembretes arquivados:", error)
     throw error
   }
 
-  return data || []
+  // Converter de snake_case para camelCase
+  return (data || []).map(dbToReminderModel)
 }
 
 export async function saveReminder(reminder: Reminder) {
   const supabase = getSupabaseClient()
 
-  // Preparar o objeto para salvar
-  const reminderToSave = {
+  // Converter de camelCase para snake_case
+  const reminderToSave = reminderModelToDB({
     ...reminder,
     updatedAt: new Date().toISOString(),
-  }
+  })
 
   // Se o ID for uma string vazia ou não existir, é um novo lembrete
   if (!reminder.id || reminder.id === "") {
     // Gerar um ID único para novos lembretes
     reminderToSave.id = crypto.randomUUID()
-    reminderToSave.createdAt = new Date().toISOString()
+    reminderToSave.created_at = new Date().toISOString()
 
     const { error } = await supabase.from("reminders").insert(reminderToSave)
 
@@ -371,7 +565,7 @@ export async function saveReminder(reminder: Reminder) {
       throw error
     }
 
-    return reminderToSave
+    return dbToReminderModel(reminderToSave)
   } else {
     // Atualizar lembrete existente
     const { error } = await supabase.from("reminders").update(reminderToSave).eq("id", reminder.id)
@@ -381,18 +575,20 @@ export async function saveReminder(reminder: Reminder) {
       throw error
     }
 
-    return reminderToSave
+    return dbToReminderModel(reminderToSave)
   }
 }
 
 export async function saveReminders(reminders: Reminder[]) {
   const supabase = getSupabaseClient()
 
-  // Preparar os objetos para salvar
-  const remindersToSave = reminders.map((reminder) => ({
-    ...reminder,
-    updatedAt: new Date().toISOString(),
-  }))
+  // Converter de camelCase para snake_case
+  const remindersToSave = reminders.map((reminder) =>
+    reminderModelToDB({
+      ...reminder,
+      updatedAt: new Date().toISOString(),
+    }),
+  )
 
   // Usar upsert para inserir ou atualizar em massa
   const { error } = await supabase.from("reminders").upsert(remindersToSave, { onConflict: "id" })
@@ -402,7 +598,7 @@ export async function saveReminders(reminders: Reminder[]) {
     throw error
   }
 
-  return remindersToSave
+  return reminders
 }
 
 export async function deleteReminder(id: string) {
@@ -421,12 +617,12 @@ export async function deleteReminder(id: string) {
 export async function archiveReminder(reminder: Reminder) {
   const supabase = getSupabaseClient()
 
-  const reminderToArchive = {
+  const reminderToArchive = reminderModelToDB({
     ...reminder,
     status: "arquivado" as ReminderStatus,
     completedAt: reminder.completedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-  }
+  })
 
   const { error } = await supabase.from("reminders").update(reminderToArchive).eq("id", reminder.id)
 
@@ -435,7 +631,7 @@ export async function archiveReminder(reminder: Reminder) {
     throw error
   }
 
-  return reminderToArchive
+  return dbToReminderModel(reminderToArchive)
 }
 
 export async function restoreReminder(id: string) {
@@ -445,7 +641,7 @@ export async function restoreReminder(id: string) {
     .from("reminders")
     .update({
       status: "pendente",
-      updatedAt: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     })
     .eq("id", id)
 

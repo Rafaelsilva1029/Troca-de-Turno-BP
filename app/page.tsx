@@ -54,6 +54,7 @@ import { ReminderSystem } from "@/components/reminder-system"
 import { CollapsibleSidebar } from "@/components/collapsible-sidebar"
 import { AnimatedHeader } from "@/components/animated-header"
 import { ParticleBackground } from "@/components/particle-background"
+import { WashingLubricationControl } from "@/components/washing-lubrication-control"
 
 import { format } from "date-fns"
 import * as XLSX from "xlsx"
@@ -1005,7 +1006,8 @@ export default function TrocaDeTurno() {
     { id: "veiculos", label: "Equipamentos Logística", icon: Truck },
     { id: "dashboard", label: "Dashboard", icon: BarChart3 },
     { id: "liberados", label: "Equipamentos Liberados", icon: CheckCircle },
-    { id: "relatorios", label: "Relatórios", icon: FileText }, // Add this new item
+    { id: "lavagem", label: "Lavagem e Lubrificação", icon: Activity },
+    { id: "relatorios", label: "Relatórios", icon: FileText },
   ]
 
   // Handle sidebar item click
@@ -1528,6 +1530,9 @@ export default function TrocaDeTurno() {
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Lavagem e Lubrificação */}
+                {activeTab === "lavagem" && <WashingLubricationControl />}
 
                 {/* Relatórios */}
                 {activeTab === "relatorios" && (
