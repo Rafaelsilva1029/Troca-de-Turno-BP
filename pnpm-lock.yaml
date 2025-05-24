@@ -14,6 +14,12 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.9.1(react-hook-form@7.54.1(react@19.0.0))
+      '@liveblocks/client':
+        specifier: latest
+        version: 2.24.2
+      '@liveblocks/react':
+        specifier: latest
+        version: 2.24.2(react@19.0.0)
       '@radix-ui/react-accordion':
         specifier: 1.2.2
         version: 1.2.2(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -367,6 +373,17 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.25':
     resolution: {integrity: sha512-vNk6aEwybGtawWmy/PzwnGDOjCkLWSD2wqvjGGAgOAwCGWySYXfYoxt00IJkTF+8Lb57DwOb3Aa0o9CApepiYQ==}
+
+  '@liveblocks/client@2.24.2':
+    resolution: {integrity: sha512-WlF501lO4vrD7N1sUTBsq3AXR+1rXRvAr2e5XAVhewvYkbDpJvBeti3jWp5S2LxufWMNNoFPzJSRR71FNaThNQ==}
+
+  '@liveblocks/core@2.24.2':
+    resolution: {integrity: sha512-RMWFGHEtwHnJDBZRdbx9gysWwWt7lDbKmX1bia2sOqff3DgELRXmrDzEMDj37X+fARdP9jGb+goWCdKHIcrTfQ==}
+
+  '@liveblocks/react@2.24.2':
+    resolution: {integrity: sha512-q2BvhlrNd8lcaEwLtGAVWrN8oCgEFWve4MTNRgNBS4T/rnpHP9rKUdsnSf6D/tsSJr7ugLhXxuDgbbWXUufZQQ==}
+    peerDependencies:
+      react: ^18 || ^19 || ^19.0.0-rc
 
   '@next/env@15.2.4':
     resolution: {integrity: sha512-+SFtMgoiYP3WoSswuNmxJOCwi06TdWE733D+WPjpXIe4LXGULwEaofiiAy6kbS0+XjM5xF5n3lKuBwN2SnqD9g==}
@@ -2276,6 +2293,18 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.0
+
+  '@liveblocks/client@2.24.2':
+    dependencies:
+      '@liveblocks/core': 2.24.2
+
+  '@liveblocks/core@2.24.2': {}
+
+  '@liveblocks/react@2.24.2(react@19.0.0)':
+    dependencies:
+      '@liveblocks/client': 2.24.2
+      '@liveblocks/core': 2.24.2
+      react: 19.0.0
 
   '@next/env@15.2.4': {}
 
