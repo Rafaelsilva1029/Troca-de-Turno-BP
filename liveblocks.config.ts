@@ -1,5 +1,8 @@
+"use client"
+
 import { createClient } from "@liveblocks/client"
 import { createRoomContext } from "@liveblocks/react"
+import React from "react"
 
 // Create a Liveblocks client
 const client = createClient({
@@ -10,8 +13,7 @@ const client = createClient({
 // and that will automatically be kept in sync. Accessible through the
 // `user.presence` property. Must be JSON-serializable.
 type Presence = {
-  // cursor: { x: number; y: number } | null
-  // ...
+  notifications?: Array<{ title: string; description: string }>
 }
 
 // Optionally, Storage represents the shared document that persists in the
@@ -19,31 +21,28 @@ type Presence = {
 // LiveList, LiveMap, LiveObject instances, for which updates are
 // automatically persisted and synced to all connected clients.
 type Storage = {
-  // author: LiveObject<{ firstName: string, lastName: string }>
-  // ...
+  // Define your storage schema here
 }
 
 // Optionally, UserMeta represents static/readonly metadata on each user, as
 // provided by your own custom auth back end (if used). Useful for data that
 // will not change during a session, like a user's name or avatar.
 type UserMeta = {
-  // id?: string  // Accessible through `user.id`
-  // info?: Json  // Accessible through `user.info`
-}
-
-// Optionally, the type of custom events broadcast and listened to in this
-// room. Use a union for multiple events. Must be JSON-serializable.
-type RoomEvent = {
-  // type: "NOTIFICATION",
-  // ...
+  // User metadata
 }
 
 // Optionally, when using Comments, ThreadMetadata represents metadata on
 // each thread. Can only contain booleans, strings, and numbers.
 export type ThreadMetadata = {
-  // resolved: boolean;
-  // quote: string;
-  // time: number;
+  // Thread metadata
+}
+
+// Optionally, the type of custom events broadcast and listened to in this
+// room. Use a union for multiple events. Must be JSON-serializable.
+type RoomEvent = {
+  type: "NOTIFICATION"
+  title: string
+  description: string
 }
 
 // Room-level hooks, use inside `RoomProvider`
@@ -89,3 +88,14 @@ export const {
     useUpdateRoomNotificationSettings,
   },
 } = createRoomContext<Presence, Storage, UserMeta, RoomEvent, ThreadMetadata>(client)
+
+// Custom hook for subscribing to presence changes
+export function useSubscription(callback: (data: { others: any[] }) => void, dependencies: any[] = []) {
+  const others = useOthers()
+
+  React.useEffect(() => {
+    callback({ others })
+  }, [others, callback, ...dependencies])
+
+  return null
+}
