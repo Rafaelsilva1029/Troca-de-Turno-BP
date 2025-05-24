@@ -30,7 +30,12 @@ interface NotificationContextType {
   notifications: (NotificationProps & { id: string })[]
 }
 
-const NotificationContext = createContext<NotificationContextType | null>(null)
+// Criando o contexto com um valor padrão mais seguro
+const NotificationContext = createContext<NotificationContextType>({
+  showNotification: () => {},
+  dismissNotification: () => {},
+  notifications: [],
+})
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<(NotificationProps & { id: string })[]>([])
