@@ -1,67 +1,89 @@
 "use client"
 
+import type React from "react"
+
+import { createContext, useContext, useState, useCallback } from "react"
 import { useToast } from "@/components/ui/use-toast"
-import { useState, useEffect } from "react"
 
-// Implementação simplificada do serviço de áudio diretamente no componente
-function useLocalAudio() {
-  const [audio, setAudio] = useState<HTMLAudioElement | null>(null)
+// Tipos para as notificações
+export type NotificationType = "info" | "success" | "alert" | "error"
 
-  useEffect(() => {
-    // Criar elemento de áudio
-    const audioElement = new Audio()
-    audioElement.preload = "auto"
-    setAudio(audioElement)
-
-    // Limpar quando o componente for desmontado
-    return () => {
-      audioElement.pause()
-      audioElement.src = ""
-    }
-  }, [])
-
-  const play = (src: string) => {
-    if (audio) {
-      audio.src = src
-      audio.currentTime = 0
-
-      const playPromise = audio.play()
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          console.error("Erro ao reproduzir áudio:", error)
-        })
-      }
-    }
-  }
-
-  return { play }
+export interface NotificationProps {
+  id?: string
+  title: string
+  message: string
+  type: NotificationType
+  dueTime?: string
+  autoCloseTime?: number
+  playSound?: boolean
+  soundId?: string
+  onAction?: (id: string, action: "complete" | "snooze" | "dismiss") => void
 }
 
-export const NotificationManager = () => {
+// Contexto para o sistema de notificações
+interface NotificationContextType {
+  showNotification: (notification: NotificationProps) => void
+  dismissNotification: (id: string) => void
+  notifications: (NotificationProps & { id: string })[]
+}
+
+const NotificationContext = createContext<NotificationContextType | null>(null)
+
+// Provider do sistema de notificações
+export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [notifications, setNotifications] = useState<(NotificationProps & { id: string })[]>([])
   const { toast } = useToast()
-  const { play } = useLocalAudio()
 
-  // Função para mostrar notificação
-  const showNotification = (title: string, description: string) => {
-    toast({
-      title,
-      description,
-    })
+  const showNotification = useCallback(
+    (notification: NotificationProps) => {
+      const id = notification.id || Math.random().toString(36).substring(2, 9)
+      const newNotification = { ...notification, id }
 
-    // Reproduzir som de notificação (usando um som padrão do sistema)
-    play("/sounds/notification.mp3")
-  }
+      // Adicionar à lista de notificações
+      setNotifications((prev) => [...prev, newNotification])
 
-  // Exemplo de uso (remova em produção)
-  useEffect(() => {
-    // Mostrar uma notificação de teste quando o componente montar
-    const timer = setTimeout(() => {
-      showNotification("Notificação de Teste", "Esta é uma notificação de teste")
-    }, 3000)
+      // Mostrar toast
+      toast({
+        title: notification.title,
+        description: notification.message,
+        variant: notification.type === "error" ? "destructive" : "default",
+      })
 
-    return () => clearTimeout(timer)
+      // Auto-fechar após o tempo especificado
+      if (notification.autoCloseTime) {
+        setTimeout(() => {
+          dismissNotification(id)
+        }, notification.autoCloseTime)
+      }
+
+      return id
+    },
+    [toast],
+  )
+
+  const dismissNotification = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((notification) => notification.id !== id))
   }, [])
 
-  // Este componente não renderiza nada visualmente
+  return (
+    <NotificationContext.Provider value={{ showNotification, dismissNotification, notifications }}>
+      {children}
+    </NotificationContext.Provider>
+  )
+}
+
+// Hook para usar o sistema de notificações
+export const useNotifications = () => {
+  const context = useContext(NotificationContext)
+  if (!context) {
+    throw new Error("useNotifications deve ser usado dentro de um NotificationProvider")
+  }
+  return context
+}
+
+// Componente NotificationManager (mantido para compatibilidade)
+export const NotificationManager = () => {
+  // Este componente agora é apenas um placeholder
+  // A lógica foi movida para o Provider
   return null
 }
