@@ -2,104 +2,83 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect, useCallback } from "react"
-import { TruckNotification } from "./truck-notification"
-import { useAudio } from "@/lib/audio-service"
-
-export type NotificationType = "info" | "success" | "alert" | "error"
-
-export interface NotificationAction {
-  id: string
-  action: "complete" | "snooze" | "dismiss"
-}
-
-export interface NotificationProps {
-  id?: string
-  title: string
-  message: string
-  type: NotificationType
-  dueTime?: string
-  autoCloseTime?: number
-  playSound?: boolean
-  soundId?: string
-  onAction?: (id: string, action: "complete" | "snooze" | "dismiss") => void
-}
+import { useToast } from "@/components/ui/use-toast"
 
 interface NotificationContextType {
-  showNotification: (notification: NotificationProps) => void
-  dismissNotification: (id: string) => void
-  notifications: (NotificationProps & { id: string })[]
+  notifications: any[]
+  addNotification: (notification: any) => void
+  removeNotification: (id: string) => void
 }
 
-const NotificationContext = createContext<NotificationContextType | null>(null)
+const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
 
-export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [notifications, setNotifications] = useState<(NotificationProps & { id: string })[]>([])
-  const audioService = useAudio()
-
-  const showNotification = useCallback(
-    (notification: NotificationProps) => {
-      const id = notification.id || Math.random().toString(36).substring(2, 9)
-      const newNotification = { ...notification, id }
-
-      setNotifications((prev) => [...prev, newNotification])
-
-      // Reproduzir som se solicitado
-      if (notification.playSound && audioService && notification.soundId) {
-        audioService.play(notification.soundId)
-      }
-
-      // Auto-fechar após o tempo especificado
-      if (notification.autoCloseTime) {
-        setTimeout(() => {
-          dismissNotification(id)
-        }, notification.autoCloseTime)
-      }
-
-      return id
-    },
-    [audioService],
-  )
-
-  const dismissNotification = useCallback((id: string) => {
-    setNotifications((prev) => prev.filter((notification) => notification.id !== id))
-  }, [])
-
-  // Limitar o número máximo de notificações visíveis
-  useEffect(() => {
-    if (notifications.length > 5) {
-      const oldestNotification = notifications[0]
-      dismissNotification(oldestNotification.id)
-    }
-  }, [notifications, dismissNotification])
-
-  return (
-    <NotificationContext.Provider value={{ showNotification, dismissNotification, notifications }}>
-      {children}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md">
-        {notifications.map((notification) => (
-          <TruckNotification
-            key={notification.id}
-            {...notification}
-            onDismiss={() => dismissNotification(notification.id)}
-            onAction={(action) => {
-              if (notification.onAction) {
-                notification.onAction(notification.id, action)
-              }
-              if (action === "dismiss") {
-                dismissNotification(notification.id)
-              }
-            }}
-          />
-        ))}
-      </div>
-    </NotificationContext.Provider>
-  )
-}
-
-export const useNotifications = () => {
+export const useNotification = () => {
   const context = useContext(NotificationContext)
   if (!context) {
-    throw new Error("useNotifications deve ser usado dentro de um NotificationProvider")
+    throw new Error("useNotification must be used within a NotificationProvider")
   }
   return context
+}
+
+// Export alias for backward compatibility
+export const useNotifications = useNotification
+
+export const NotificationProvider = ({ children }: { children: React.ReactNode }) => {
+  const [notifications, setNotifications] = useState<any[]>([])
+  const { toast } = useToast()
+
+  const playNotificationSound = () => {
+    try {
+      const audio = new Audio("/notification-sound.mp3")
+      audio.volume = 0.5
+      audio.play().catch(console.error)
+    } catch (error) {
+      console.error("Error playing notification sound:", error)
+    }
+  }
+
+  const addNotification = useCallback((notification: any) => {
+    setNotifications((prevNotifications) => [...prevNotifications, notification])
+  }, [])
+
+  const removeNotification = useCallback((id: string) => {
+    setNotifications((prevNotifications) => prevNotifications.filter((notification) => notification.id !== id))
+  }, [])
+
+  useEffect(() => {
+    if (notifications.length > 0) {
+      const latestNotification = notifications[notifications.length - 1]
+
+      toast({
+        title: latestNotification.title,
+        description: latestNotification.message,
+      })
+
+      playNotificationSound()
+    }
+  }, [notifications, toast])
+
+  // Example of fetching notifications from an API (replace with your actual API endpoint)
+  // useEffect(() => {
+  //   const fetchNotifications = async () => {
+  //     try {
+  //       const response = await fetch('/api/notifications');
+  //       const data = await response.json();
+  //       data.forEach((notification: any) => addNotification(notification));
+  //     } catch (error) {
+  //       console.error("Failed to fetch notifications:", error);
+  //     }
+  //   };
+
+  //   // Only fetch if user is authenticated (you can add your own auth check here)
+  //   fetchNotifications();
+  // }, [addNotification]);
+
+  const value: NotificationContextType = {
+    notifications,
+    addNotification,
+    removeNotification,
+  }
+
+  return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>
 }
