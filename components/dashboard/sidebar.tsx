@@ -131,33 +131,32 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
       )}
     >
       {/* Logo */}
-      <div
-        className={cn(
-          "flex items-center h-16 border-b border-slate-700/50 px-4",
-          collapsed ? "justify-center" : "justify-between",
-        )}
-      >
-        {!collapsed && (
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <Image src="/branco-peres-logo.png" alt="Branco Peres" width={32} height={32} className="rounded-sm" />
-            <span className="font-bold text-lg text-white">Branco Peres</span>
-          </Link>
-        )}
+      <div className="flex flex-col h-24 border-b border-slate-700/50 px-4 py-3">
+        <div className="flex items-center justify-center mb-4">
+          {!collapsed && (
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <Image src="/branco-peres-logo.png" alt="Branco Peres" width={32} height={32} className="rounded-sm" />
+              <span className="font-bold text-lg text-white">Branco Peres</span>
+            </Link>
+          )}
 
-        {collapsed && (
-          <Link href="/dashboard">
-            <Image src="/branco-peres-logo.png" alt="Branco Peres" width={32} height={32} className="rounded-sm" />
-          </Link>
-        )}
+          {collapsed && (
+            <Link href="/dashboard">
+              <Image src="/branco-peres-logo.png" alt="Branco Peres" width={32} height={32} className="rounded-sm" />
+            </Link>
+          )}
+        </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleCollapsed}
-          className={cn("text-slate-400 hover:text-white hover:bg-slate-800", collapsed ? "ml-0" : "ml-auto")}
-        >
-          {collapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-        </Button>
+        <div className="flex justify-end pt-2 border-t border-slate-700/30">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleCollapsed}
+            className="h-6 w-6 text-slate-400 hover:text-white hover:bg-slate-800"
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
       {/* Navigation */}

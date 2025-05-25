@@ -208,33 +208,197 @@ export async function saveProgramacaoTurno(items: { id: string; content: string 
   }
 }
 
+// Funções para veículos logística (versão completa)
+// Atualizar as funções de veículos para usar a estrutura atual da tabela
+// Substituir as funções fetchVeiculosLogistica, saveVeiculoLogistica, deleteVeiculoLogistica e saveVeiculosLogistica
+
 export async function fetchVeiculosLogistica() {
   const supabase = getSupabaseClient()
-  const { data, error } = await supabase.from("veiculos_logistica").select("*")
-  if (error) throw error
-  return data || []
+  const { data, error } = await supabase.from("veiculos_logistica").select("*").order("frota", { ascending: true })
+
+  if (error) {
+    console.error("Error fetching veiculos logistica:", error)
+    throw error
+  }
+
+  // Converter dados da estrutura atual para a estrutura esperada pelo frontend
+  return (data || []).map((veiculo: any) => ({
+    id: veiculo.id?.toString() || Date.now().toString(),
+    frota: veiculo.frota || "",
+    categoria: "veiculos-leves", // Valor padrão já que a coluna não existe
+    placa: "", // Valor padrão já que a coluna não existe
+    modelo: "", // Valor padrão já que a coluna não existe
+    ano: "2020", // Valor padrão já que a coluna não existe
+    status: veiculo.status || "Operacional",
+    ultimaManutencao: undefined,
+    proximaManutencao: undefined,
+    motorista: undefined,
+    observacoes: undefined,
+  }))
+}
+
+export async function saveVeiculoLogistica(veiculo: any) {
+  const supabase = getSupabaseClient()
+
+  // Usar apenas os campos que existem na tabela atual
+  const veiculoToSave = {
+    item_id: veiculo.frota, // Usar a frota como item_id
+    frota: veiculo.frota,
+    status: veiculo.status,
+    updated_at: new Date().toISOString(),
+  }
+
+  // Se o ID for uma string vazia, não existir, ou for um ID temporário, é um novo veículo
+  if (!veiculo.id || veiculo.id === "" || isNaN(Number.parseInt(veiculo.id))) {
+    // Inserir novo veículo
+    const veiculoToInsert = {
+      ...veiculoToSave,
+      created_at: new Date().toISOString(),
+    }
+
+    const { data, error } = await supabase.from("veiculos_logistica").insert(veiculoToInsert).select()
+
+    if (error) {
+      console.error("Error creating veiculo:", error)
+      throw error
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error("Nenhum dado retornado após inserção")
+    }
+
+    const newVeiculo = data[0]
+    return {
+      id: newVeiculo.id?.toString() || Date.now().toString(),
+      frota: newVeiculo.frota,
+      categoria: veiculo.categoria,
+      placa: veiculo.placa,
+      modelo: veiculo.modelo,
+      ano: veiculo.ano,
+      status: newVeiculo.status,
+      ultimaManutencao: veiculo.ultimaManutencao,
+      proximaManutencao: veiculo.proximaManutencao,
+      motorista: veiculo.motorista,
+      observacoes: veiculo.observacoes,
+    }
+  } else {
+    // Verificar se o veículo existe antes de atualizar
+    const { data: existingVehicle, error: checkError } = await supabase
+      .from("veiculos_logistica")
+      .select("id")
+      .eq("id", Number.parseInt(veiculo.id))
+      .maybeSingle()
+
+    if (checkError) {
+      console.error("Error checking existing vehicle:", checkError)
+      throw checkError
+    }
+
+    if (!existingVehicle) {
+      // Se não existe, inserir como novo
+      const veiculoToInsert = {
+        ...veiculoToSave,
+        created_at: new Date().toISOString(),
+      }
+
+      const { data, error } = await supabase.from("veiculos_logistica").insert(veiculoToInsert).select()
+
+      if (error) {
+        console.error("Error creating veiculo (fallback):", error)
+        throw error
+      }
+
+      if (!data || data.length === 0) {
+        throw new Error("Nenhum dado retornado após inserção (fallback)")
+      }
+
+      const newVeiculo = data[0]
+      return {
+        id: newVeiculo.id?.toString() || veiculo.id,
+        frota: newVeiculo.frota,
+        categoria: veiculo.categoria,
+        placa: veiculo.placa,
+        modelo: veiculo.modelo,
+        ano: veiculo.ano,
+        status: newVeiculo.status,
+        ultimaManutencao: veiculo.ultimaManutencao,
+        proximaManutencao: veiculo.proximaManutencao,
+        motorista: veiculo.motorista,
+        observacoes: veiculo.observacoes,
+      }
+    } else {
+      // Atualizar veículo existente
+      const { data, error } = await supabase
+        .from("veiculos_logistica")
+        .update(veiculoToSave)
+        .eq("id", Number.parseInt(veiculo.id))
+        .select()
+
+      if (error) {
+        console.error("Error updating veiculo:", error)
+        throw error
+      }
+
+      if (!data || data.length === 0) {
+        throw new Error("Nenhum dado retornado após atualização")
+      }
+
+      const updatedVeiculo = data[0]
+      return {
+        id: updatedVeiculo.id?.toString() || veiculo.id,
+        frota: updatedVeiculo.frota,
+        categoria: veiculo.categoria,
+        placa: veiculo.placa,
+        modelo: veiculo.modelo,
+        ano: veiculo.ano,
+        status: veiculo.status,
+        ultimaManutencao: veiculo.ultimaManutencao,
+        proximaManutencao: veiculo.proximaManutencao,
+        motorista: veiculo.motorista,
+        observacoes: veiculo.observacoes,
+      }
+    }
+  }
+}
+
+export async function deleteVeiculoLogistica(id: string) {
+  const supabase = getSupabaseClient()
+
+  const { error } = await supabase.from("veiculos_logistica").delete().eq("id", id)
+
+  if (error) {
+    console.error("Error deleting veiculo:", error)
+    throw error
+  }
+
+  return true
 }
 
 export async function saveVeiculosLogistica(veiculos: any[]) {
   const supabase = getSupabaseClient()
 
-  // First, delete all existing veiculos
-  const { error: deleteError } = await supabase.from("veiculos_logistica").delete()
-  if (deleteError) throw deleteError
+  // Preparar os dados usando apenas os campos que existem na tabela
+  const veiculosToSave = veiculos.map((veiculo) => ({
+    id: veiculo.id,
+    item_id: veiculo.frota || `veiculo-${veiculo.id}`, // Usar frota como item_id ou gerar um ID único
+    frota: veiculo.frota,
+    status: veiculo.status,
+    updated_at: new Date().toISOString(),
+    created_at: veiculo.created_at || new Date().toISOString(),
+  }))
 
-  // Then, insert the new ones
-  if (veiculos.length > 0) {
-    const veiculosToInsert = veiculos.map((veiculo) => ({
-      ...veiculo,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }))
+  // Usar upsert para inserir ou atualizar em massa
+  const { data, error } = await supabase
+    .from("veiculos_logistica")
+    .upsert(veiculosToSave, { onConflict: "id" })
+    .select()
 
-    const { error: insertError } = await supabase.from("veiculos_logistica").insert(veiculosToInsert)
-    if (insertError) throw insertError
+  if (error) {
+    console.error("Error saving veiculos logistica:", error)
+    throw error
   }
 
-  return true
+  return data || []
 }
 
 // Report functions

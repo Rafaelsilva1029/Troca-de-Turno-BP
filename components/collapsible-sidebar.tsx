@@ -93,15 +93,27 @@ export function CollapsibleSidebar({
         <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setMobileOpen(false)} />
       )}
 
-      {/* Mobile toggle button */}
+      {/* Mobile toggle button - moved down to avoid logo overlap */}
       {isMobile && (
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleCollapse}
-          className="fixed top-4 left-4 z-50 md:hidden bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+          className="fixed top-20 left-4 z-50 md:hidden bg-slate-800/60 text-slate-200/80 hover:bg-slate-700/70 hover:text-white backdrop-blur-sm"
         >
           {mobileOpen ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+        </Button>
+      )}
+
+      {/* Desktop toggle button when sidebar is collapsed - moved down */}
+      {!isMobile && collapsed && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleCollapse}
+          className="fixed top-20 left-4 z-50 bg-slate-800/60 text-slate-200/80 hover:bg-slate-700/70 hover:text-white backdrop-blur-sm"
+        >
+          <ChevronRight className="h-5 w-5" />
         </Button>
       )}
 
@@ -116,7 +128,7 @@ export function CollapsibleSidebar({
       >
         <CardContent className="p-4 h-full flex flex-col">
           {/* Logo area */}
-          <div className="flex items-center justify-between mb-6 mt-2">
+          <div className="flex items-center justify-center mb-8 mt-2">
             {!collapsed && (
               <div className="flex items-center space-x-2">
                 <div className="h-8 w-8 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center">
@@ -125,19 +137,21 @@ export function CollapsibleSidebar({
                 <span className="font-bold text-slate-100">Dashboard</span>
               </div>
             )}
+          </div>
 
-            {/* Collapse toggle button (desktop only) */}
-            {!isMobile && (
+          {/* Collapse toggle button (desktop only) - inside sidebar */}
+          {!isMobile && !collapsed && (
+            <div className="flex justify-end mb-6 pb-2 border-b border-slate-700/30">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={toggleCollapse}
                 className="h-8 w-8 text-slate-400 hover:text-slate-100"
               >
-                {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Navigation */}
           <nav className="space-y-1 flex-1">

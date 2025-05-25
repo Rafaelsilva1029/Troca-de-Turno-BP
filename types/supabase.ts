@@ -86,45 +86,45 @@ export interface Database {
       }
       veiculos_logistica: {
         Row: {
-          id: number
+          id: string
           frota: string
           categoria: string
           placa: string
           modelo: string
           ano: string
           status: string
-          ultimaManutencao?: string
-          proximaManutencao?: string
+          ultima_manutencao?: string
+          proxima_manutencao?: string
           motorista?: string
           observacoes?: string
           created_at: string
           updated_at: string
         }
         Insert: {
-          id?: number
+          id?: string
           frota: string
           categoria: string
           placa: string
           modelo: string
           ano: string
           status: string
-          ultimaManutencao?: string
-          proximaManutencao?: string
+          ultima_manutencao?: string
+          proxima_manutencao?: string
           motorista?: string
           observacoes?: string
           created_at?: string
           updated_at?: string
         }
         Update: {
-          id?: number
+          id?: string
           frota?: string
           categoria?: string
           placa?: string
           modelo?: string
           ano?: string
           status?: string
-          ultimaManutencao?: string
-          proximaManutencao?: string
+          ultima_manutencao?: string
+          proxima_manutencao?: string
           motorista?: string
           observacoes?: string
           created_at?: string

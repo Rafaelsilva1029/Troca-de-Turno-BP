@@ -33,6 +33,7 @@ import {
 } from "lucide-react"
 
 import { PendenciaSection } from "@/components/pendencia-section"
+import { PendenciasRecentes } from "@/components/pendencias-recentes"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -47,6 +48,9 @@ import {
   fetchProgramacaoTurno,
   saveProgramacaoTurno,
   fetchVeiculosLogistica,
+  saveVeiculoLogistica,
+  deleteVeiculoLogistica,
+  saveVeiculosLogistica,
 } from "@/lib/supabase"
 import { PendenciasLiberadas } from "@/components/pendencias-liberadas"
 import { DashboardCharts } from "@/components/dashboard-charts"
@@ -55,6 +59,8 @@ import { CollapsibleSidebar } from "@/components/collapsible-sidebar"
 import { AnimatedHeader } from "@/components/animated-header"
 import { ParticleBackground } from "@/components/particle-background"
 import { WashingLubricationControl } from "@/components/washing-lubrication-control"
+import { LiberarPendenciaModal } from "@/components/liberar-pendencia-modal"
+import { VehicleDialog } from "@/components/vehicle-dialog"
 
 import { format } from "date-fns"
 import * as XLSX from "xlsx"
@@ -128,43 +134,7 @@ export default function TrocaDeTurno() {
   ])
 
   // Vehicle state
-  const [veiculosLogistica, setVeiculosLogistica] = useState<Vehicle[]>([
-    {
-      id: "1",
-      frota: "L-001",
-      categoria: "veiculos-leves",
-      placa: "ABC-1234",
-      modelo: "Toyota Hilux",
-      ano: "2022",
-      status: "Operacional",
-      ultimaManutencao: "2023-05-15",
-      proximaManutencao: "2023-08-15",
-      motorista: "João Silva",
-    },
-    {
-      id: "2",
-      frota: "CS-001",
-      categoria: "carga-seca",
-      placa: "DEF-5678",
-      modelo: "Mercedes Benz Atego",
-      ano: "2020",
-      status: "Em manutenção",
-      ultimaManutencao: "2023-06-10",
-      proximaManutencao: "2023-09-10",
-    },
-    {
-      id: "3",
-      frota: "P-001",
-      categoria: "caminhao-pipa",
-      placa: "GHI-9012",
-      modelo: "Volvo FH",
-      ano: "2021",
-      status: "Operacional",
-      ultimaManutencao: "2023-04-20",
-      proximaManutencao: "2023-07-20",
-      motorista: "Carlos Oliveira",
-    },
-  ])
+  const [veiculosLogistica, setVeiculosLogistica] = useState<Vehicle[]>([])
 
   const [activeVehicleCategory, setActiveVehicleCategory] = useState<VehicleCategory>("veiculos-leves")
   const [vehicleDialogOpen, setVehicleDialogOpen] = useState(false)
@@ -250,11 +220,36 @@ export default function TrocaDeTurno() {
         setProgramacaoTurno(transformedProgramacaoData)
       }
 
+      // Atualizar a função loadAllDataFromDatabase para lidar com a estrutura atual da tabela
+
       // Carregar veículos logística
       const veiculosData = await fetchVeiculosLogistica()
       if (veiculosData.length > 0) {
-        // This would need to be updated to handle the new vehicle structure
-        // For now, we'll keep the mock data
+        setVeiculosLogistica(veiculosData)
+      } else {
+        // Se não há dados no banco, usar alguns dados de exemplo
+        const exemploVeiculos = [
+          {
+            id: "1",
+            frota: "L-001",
+            categoria: "veiculos-leves" as VehicleCategory,
+            placa: "ABC-1234",
+            modelo: "Toyota Hilux",
+            ano: "2022",
+            status: "Operacional",
+            motorista: "João Silva",
+          },
+          {
+            id: "2",
+            frota: "CS-001",
+            categoria: "carga-seca" as VehicleCategory,
+            placa: "DEF-5678",
+            modelo: "Mercedes Atego",
+            ano: "2020",
+            status: "Em manutenção",
+          },
+        ]
+        setVeiculosLogistica(exemploVeiculos)
       }
 
       setLastSyncTime(new Date())
@@ -322,15 +317,29 @@ export default function TrocaDeTurno() {
       setIsSaving(true)
       setDatabaseError(null)
 
-      // This would need to be updated to handle the new vehicle structure
-      // await saveVeiculosLogistica(veiculosLogistica)
+      // Salvar apenas os campos que existem na tabela
+      const veiculosToSave = veiculosLogistica.map((veiculo) => ({
+        id: veiculo.id,
+        frota: veiculo.frota,
+        status: veiculo.status,
+      }))
+
+      await saveVeiculosLogistica(veiculosToSave)
 
       setLastSyncTime(new Date())
-      alert("Veículos logística salvos com sucesso!")
+      toast({
+        title: "Sucesso",
+        description: "Veículos logística salvos com sucesso!",
+        variant: "default",
+      })
     } catch (error) {
       console.error("Error saving veiculos:", error)
       setDatabaseError("Erro ao salvar veículos. Verifique sua conexão.")
-      alert("Erro ao salvar veículos!")
+      toast({
+        title: "Erro",
+        description: "Erro ao salvar veículos!",
+        variant: "destructive",
+      })
     } finally {
       setIsSaving(false)
     }
@@ -946,7 +955,7 @@ export default function TrocaDeTurno() {
   // Vehicle management functions
   const addVehicle = () => {
     setEditingVehicle({
-      id: (veiculosLogistica.length + 1).toString(),
+      id: "", // ID vazio para indicar novo veículo
       frota: "",
       categoria: activeVehicleCategory,
       placa: "",
@@ -962,18 +971,54 @@ export default function TrocaDeTurno() {
     setVehicleDialogOpen(true)
   }
 
-  const deleteVehicle = (id: string) => {
-    setVeiculosLogistica(veiculosLogistica.filter((v) => v.id !== id))
+  const deleteVehicle = async (id: string) => {
+    try {
+      await deleteVeiculoLogistica(id)
+      setVeiculosLogistica(veiculosLogistica.filter((v) => v.id !== id))
+
+      toast({
+        title: "Sucesso",
+        description: "Veículo excluído com sucesso!",
+        variant: "default",
+      })
+    } catch (error) {
+      console.error("Error deleting vehicle:", error)
+      toast({
+        title: "Erro",
+        description: "Erro ao excluir veículo!",
+        variant: "destructive",
+      })
+    }
   }
 
-  const saveVehicle = (vehicle: Vehicle) => {
-    if (veiculosLogistica.some((v) => v.id === vehicle.id)) {
-      setVeiculosLogistica(veiculosLogistica.map((v) => (v.id === vehicle.id ? vehicle : v)))
-    } else {
-      setVeiculosLogistica([...veiculosLogistica, vehicle])
+  // Atualizar a função saveVehicle para trabalhar com os dados limitados
+
+  const saveVehicle = async (vehicle: Vehicle) => {
+    try {
+      const savedVehicle = await saveVeiculoLogistica(vehicle)
+
+      if (veiculosLogistica.some((v) => v.id === vehicle.id)) {
+        setVeiculosLogistica(veiculosLogistica.map((v) => (v.id === vehicle.id ? savedVehicle : v)))
+      } else {
+        setVeiculosLogistica([...veiculosLogistica, savedVehicle])
+      }
+
+      setVehicleDialogOpen(false)
+      setEditingVehicle(null)
+
+      toast({
+        title: "Sucesso",
+        description: "Veículo salvo com sucesso!",
+        variant: "default",
+      })
+    } catch (error) {
+      console.error("Error saving vehicle:", error)
+      toast({
+        title: "Erro",
+        description: "Erro ao salvar veículo!",
+        variant: "destructive",
+      })
     }
-    setVehicleDialogOpen(false)
-    setEditingVehicle(null)
   }
 
   // Filter vehicles by category and search term
@@ -1013,6 +1058,18 @@ export default function TrocaDeTurno() {
   // Handle sidebar item click
   const handleSidebarItemClick = (id: string) => {
     setActiveTab(id)
+  }
+
+  // Função para navegar para uma categoria específica das pendências
+  const handleViewCategory = (category: string) => {
+    setActiveTab("pendencias")
+    // Pequeno delay para garantir que a aba foi alterada antes de abrir o accordion
+    setTimeout(() => {
+      const accordionElement = document.querySelector(`[data-state="closed"][data-radix-collection-item]`)
+      if (accordionElement) {
+        ;(accordionElement as HTMLElement).click()
+      }
+    }, 100)
   }
 
   return (
@@ -1219,102 +1276,111 @@ export default function TrocaDeTurno() {
 
                 {/* Pendências Oficina */}
                 {activeTab === "pendencias" && (
-                  <Card className="bg-slate-900/50 border-slate-700/50 backdrop-blur-sm">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-slate-100 flex items-center text-base font-semibold tracking-wide">
-                        <Tool className="mr-2 h-5 w-5 text-green-500" />
-                        Pendências Oficina
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <PendenciasContext.Provider
-                        value={{
-                          pendenciasData,
-                          updatePendenciasData,
-                          openReportModal,
-                          openLiberarPendenciaModal,
-                        }}
-                      >
-                        <Accordion type="multiple" className="w-full">
-                          {[
-                            "Veículos Logística",
-                            "Caminhões Pipas",
-                            "Caminhões Munck",
-                            "Caminhões Prancha/Vinhaça/Muda",
-                            "Caminhões Caçambas",
-                            "Área de Vivências",
-                            "Carretinhas RTK",
-                            "Tanques e Dolly",
-                            "Carretas Canavieira",
-                          ].map((title) => (
-                            <PendenciaSection
-                              key={title}
-                              title={title}
-                              context={{
-                                pendenciasData,
-                                updatePendenciasData,
-                                openReportModal,
-                                openLiberarPendenciaModal,
-                              }}
-                              onAutoSave={(category, pendencias) => {
-                                setLastSyncTime(new Date())
-                              }}
-                            />
-                          ))}
-                        </Accordion>
-                      </PendenciasContext.Provider>
-                    </CardContent>
-                    <CardFooter className="border-t border-slate-700/50 pt-4 flex justify-between">
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => openReportModal()}
-                          className="bg-slate-800 hover:bg-slate-700"
+                  <div className="space-y-6">
+                    {/* Pendências Recentes */}
+                    <PendenciasRecentes
+                      onViewCategory={handleViewCategory}
+                      onGenerateReport={(category) => openReportModal(category)}
+                    />
+
+                    {/* Pendências Principais */}
+                    <Card className="bg-slate-900/50 border-slate-700/50 backdrop-blur-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-slate-100 flex items-center text-base font-semibold tracking-wide">
+                          <Tool className="mr-2 h-5 w-5 text-green-500" />
+                          Pendências Oficina
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <PendenciasContext.Provider
+                          value={{
+                            pendenciasData,
+                            updatePendenciasData,
+                            openReportModal,
+                            openLiberarPendenciaModal,
+                          }}
                         >
-                          <Eye className="h-4 w-4 mr-2" /> Ver Relatório Completo
-                        </Button>
-                        {lastSyncTime && (
-                          <span className="text-xs text-slate-500">
-                            Última sincronização: {lastSyncTime.toLocaleTimeString()}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          className="bg-blue-600 hover:bg-blue-700"
-                          onClick={loadAllDataFromDatabase}
-                          disabled={isSyncingDatabase}
-                        >
-                          {isSyncingDatabase ? (
-                            <>
-                              <div className="h-4 w-4 border-2 border-slate-100 border-t-transparent rounded-full animate-spin mr-2"></div>
-                              Sincronizando...
-                            </>
-                          ) : (
-                            <>
-                              <Download className="h-4 w-4 mr-2" /> Sincronizar Dados
-                            </>
+                          <Accordion type="multiple" className="w-full">
+                            {[
+                              "Veículos Logística",
+                              "Caminhões Pipas",
+                              "Caminhões Munck",
+                              "Caminhões Prancha/Vinhaça/Muda",
+                              "Caminhões Caçambas",
+                              "Área de Vivências",
+                              "Carretinhas RTK",
+                              "Tanques e Dolly",
+                              "Carretas Canavieira",
+                            ].map((title) => (
+                              <PendenciaSection
+                                key={title}
+                                title={title}
+                                context={{
+                                  pendenciasData,
+                                  updatePendenciasData,
+                                  openReportModal,
+                                  openLiberarPendenciaModal,
+                                }}
+                                onAutoSave={(category, pendencias) => {
+                                  setLastSyncTime(new Date())
+                                }}
+                              />
+                            ))}
+                          </Accordion>
+                        </PendenciasContext.Provider>
+                      </CardContent>
+                      <CardFooter className="border-t border-slate-700/50 pt-4 flex justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => openReportModal()}
+                            className="bg-slate-800 hover:bg-slate-700"
+                          >
+                            <Eye className="h-4 w-4 mr-2" /> Ver Relatório Completo
+                          </Button>
+                          {lastSyncTime && (
+                            <span className="text-xs text-slate-500">
+                              Última sincronização: {lastSyncTime.toLocaleTimeString()}
+                            </span>
                           )}
-                        </Button>
-                        <Button
-                          className="bg-green-600 hover:bg-green-700"
-                          onClick={savePendenciasToDatabase}
-                          disabled={isSaving}
-                        >
-                          {isSaving ? (
-                            <>
-                              <div className="h-4 w-4 border-2 border-slate-100 border-t-transparent rounded-full animate-spin mr-2"></div>
-                              Salvando...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="h-4 w-4 mr-2" /> Salvar Alterações
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </CardFooter>
-                  </Card>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button
+                            className="bg-blue-600 hover:bg-blue-700"
+                            onClick={loadAllDataFromDatabase}
+                            disabled={isSyncingDatabase}
+                          >
+                            {isSyncingDatabase ? (
+                              <>
+                                <div className="h-4 w-4 border-2 border-slate-100 border-t-transparent rounded-full animate-spin mr-2"></div>
+                                Sincronizando...
+                              </>
+                            ) : (
+                              <>
+                                <Download className="h-4 w-4 mr-2" /> Sincronizar Dados
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={savePendenciasToDatabase}
+                            disabled={isSaving}
+                          >
+                            {isSaving ? (
+                              <>
+                                <div className="h-4 w-4 border-2 border-slate-100 border-t-transparent rounded-full animate-spin mr-2"></div>
+                                Salvando...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="h-4 w-4 mr-2" /> Salvar Alterações
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </CardFooter>
+                    </Card>
+                  </div>
                 )}
 
                 {/* Veículos Logística */}
@@ -1376,15 +1442,26 @@ export default function TrocaDeTurno() {
                           </Button>
                         </div>
 
-                        {/* Vehicle List with scrollable container */}
+                        {/* Vehicle List with improved scrollable container */}
                         <div className="bg-slate-800/30 rounded-md border border-slate-700/50 overflow-hidden">
-                          <div className="max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-800/50 p-1">
+                          {/* Header com contador */}
+                          <div className="bg-slate-800/50 px-4 py-2 border-b border-slate-700/50">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-slate-300">{getCategoryName(activeVehicleCategory)}</span>
+                              <Badge variant="outline" className="bg-slate-700/50 text-green-400 border-green-500/50">
+                                {filteredVehicles.length} {filteredVehicles.length === 1 ? "veículo" : "veículos"}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          {/* Lista com scroll melhorado */}
+                          <div className="max-h-[65vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800/30 hover:scrollbar-thumb-slate-500">
                             {filteredVehicles.length > 0 ? (
-                              <div className="space-y-2 p-2">
-                                {filteredVehicles.map((vehicle) => (
+                              <div className="space-y-3 p-4">
+                                {filteredVehicles.map((vehicle, index) => (
                                   <div
-                                    key={vehicle.id}
-                                    className="bg-slate-800/70 rounded-md p-4 border border-slate-700/50 hover:bg-slate-800 transition-colors"
+                                    key={`${vehicle.id}-${index}`} // Chave única combinando ID e índice
+                                    className="bg-slate-800/70 rounded-lg p-4 border border-slate-700/50 hover:bg-slate-800 hover:border-slate-600/50 transition-all duration-200 shadow-sm hover:shadow-md"
                                   >
                                     <div className="flex justify-between items-start mb-2">
                                       <div className="flex items-center space-x-2">
@@ -1445,14 +1522,38 @@ export default function TrocaDeTurno() {
                                 ))}
                               </div>
                             ) : (
-                              <div className="flex flex-col items-center justify-center h-40 text-slate-400">
-                                <Truck className="h-10 w-10 mb-2 opacity-20" />
-                                <p>Nenhum equipamento encontrado</p>
-                                <p className="text-sm">Tente ajustar sua busca ou adicione um novo equipamento</p>
+                              <div className="flex flex-col items-center justify-center h-40 text-slate-400 p-4">
+                                <Truck className="h-12 w-12 mb-3 opacity-30" />
+                                <p className="text-base font-medium">Nenhum equipamento encontrado</p>
+                                <p className="text-sm text-center mt-1">
+                                  {searchTerm
+                                    ? "Tente ajustar sua busca ou limpe o filtro"
+                                    : "Adicione um novo equipamento para começar"}
+                                </p>
+                                {searchTerm && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSearchTerm("")}
+                                    className="mt-3 bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 border-slate-600/50"
+                                  >
+                                    Limpar busca
+                                  </Button>
+                                )}
                               </div>
                             )}
                           </div>
                         </div>
+
+                        {/* Indicador de scroll se houver muitos itens */}
+                        {filteredVehicles.length > 5 && (
+                          <div className="bg-slate-800/30 px-4 py-2 border-t border-slate-700/50">
+                            <div className="flex items-center justify-center text-xs text-slate-500">
+                              <ChevronDown className="h-3 w-3 mr-1 animate-bounce" />
+                              Role para ver mais equipamentos
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                     <CardFooter className="border-t border-slate-700/50 pt-4 flex justify-between">
@@ -1697,6 +1798,26 @@ export default function TrocaDeTurno() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Vehicle Dialog */}
+      <VehicleDialog
+        isOpen={vehicleDialogOpen}
+        onClose={() => {
+          setVehicleDialogOpen(false)
+          setEditingVehicle(null)
+        }}
+        vehicle={editingVehicle}
+        onSave={saveVehicle}
+      />
+
+      {/* Modal de Liberação de Pendência */}
+      <LiberarPendenciaModal
+        isOpen={liberarPendenciaProps.isOpen}
+        onClose={() => setLiberarPendenciaProps({ isOpen: false, category: "", description: "" })}
+        category={liberarPendenciaProps.category}
+        description={liberarPendenciaProps.description}
+        onSuccess={handleLiberacaoSuccess}
+      />
     </div>
   )
 }

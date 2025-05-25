@@ -82,19 +82,19 @@ const MainSidebar = () => {
       collapsible={collapsed ? "offcanvas" : "none"}
       side="left"
     >
-      <SidebarHeader className="px-4 py-3 border-b border-slate-700/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-iliieuxhPX3jg8ZHtz6jwLzBhHKw3f.png" />
-              <AvatarFallback className="bg-slate-700 text-green-500">BP</AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="font-bold text-white">TROCA DE TURNO</h2>
-              <p className="text-xs text-slate-400">Branco Peres</p>
-            </div>
+      <SidebarHeader className="px-4 py-4 border-b border-slate-700/50">
+        <div className="flex items-center justify-center mb-6">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-iliieuxhPX3jg8ZHtz6jwLzBhHKw3f.png" />
+            <AvatarFallback className="bg-slate-700 text-green-500">BP</AvatarFallback>
+          </Avatar>
+          <div className="ml-2">
+            <h2 className="font-bold text-white">TROCA DE TURNO</h2>
+            <p className="text-xs text-slate-400">Branco Peres</p>
           </div>
+        </div>
 
+        <div className="flex justify-end mt-4 pt-2 border-t border-slate-700/30">
           <Button
             variant="ghost"
             size="icon"

@@ -42,7 +42,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useNotifications } from "./notification-manager"
+import { useNotification } from "./notification-manager"
 import {
   type Reminder,
   type ReminderPriority,
@@ -70,7 +70,7 @@ export function ReminderSystem() {
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
   const [databaseError, setDatabaseError] = useState<string | null>(null)
   const [pendingChanges, setPendingChanges] = useState(false)
-  const { showNotification } = useNotifications()
+  const { addNotification } = useNotification()
 
   // Carregar lembretes do banco de dados
   const loadRemindersFromDatabase = useCallback(async () => {
@@ -91,7 +91,7 @@ export function ReminderSystem() {
     } catch (error) {
       console.error("Erro ao carregar lembretes:", error)
       setDatabaseError("Erro ao carregar lembretes. Verifique sua conexão.")
-      showNotification({
+      addNotification({
         title: "Erro de Sincronização",
         message: "Não foi possível carregar os lembretes do banco de dados.",
         type: "error",
@@ -101,7 +101,7 @@ export function ReminderSystem() {
       setIsSyncingDatabase(false)
       setIsLoading(false)
     }
-  }, [showNotification])
+  }, [addNotification])
 
   // Salvar lembretes no banco de dados
   const saveRemindersToDatabase = async () => {
@@ -115,16 +115,16 @@ export function ReminderSystem() {
       setLastSyncTime(new Date())
       setPendingChanges(false)
 
-      showNotification({
+      addNotification({
         title: "Sincronização Concluída",
         message: "Todos os lembretes foram salvos com sucesso.",
         type: "success",
-        autoCloseTime: 3000,
+        autoCloseTime: 5000,
       })
     } catch (error) {
       console.error("Erro ao salvar lembretes:", error)
       setDatabaseError("Erro ao salvar lembretes. Verifique sua conexão.")
-      showNotification({
+      addNotification({
         title: "Erro de Sincronização",
         message: "Não foi possível salvar os lembretes no banco de dados.",
         type: "error",
@@ -164,20 +164,11 @@ export function ReminderSystem() {
 
         // Notificar lembretes exatamente 1 hora antes do prazo (entre 58 e 62 minutos)
         if (minutesToDue >= 58 && minutesToDue <= 62 && !reminder.oneHourNotified && reminder.status !== "atrasado") {
-          showNotification({
+          addNotification({
             title: "Lembrete em 1 hora!",
             message: `${reminder.title} vence em 1 hora`,
             type: "alert",
-            dueTime: `Vence em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
-            playSound: false, // ÁUDIO REMOVIDO
-            autoCloseTime: 15000,
-            onAction: (id, action) => {
-              if (action === "complete") {
-                markAsCompleted(reminder.id)
-              } else if (action === "snooze") {
-                postponeReminder(reminder.id, 30)
-              }
-            },
+            autoCloseTime: 5000,
           })
 
           // Marcar como notificado para 1 hora
@@ -191,19 +182,11 @@ export function ReminderSystem() {
 
         // Notificar lembretes atrasados
         else if (isBefore(dueDateTime, now) && reminder.status !== "atrasado") {
-          showNotification({
+          addNotification({
             title: "Lembrete Atrasado!",
             message: reminder.title,
             type: "alert",
-            dueTime: `Venceu em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
-            playSound: false, // ÁUDIO REMOVIDO
-            onAction: (id, action) => {
-              if (action === "complete") {
-                markAsCompleted(reminder.id)
-              } else if (action === "snooze") {
-                postponeReminder(reminder.id, 60)
-              }
-            },
+            autoCloseTime: 5000,
           })
 
           // Atualizar status para atrasado
@@ -219,19 +202,11 @@ export function ReminderSystem() {
 
         // Notificar lembretes próximos (menos de 15 minutos, mas não 1 hora)
         else if (minutesToDue > 0 && minutesToDue < 15 && !reminder.notified && reminder.status !== "atrasado") {
-          showNotification({
+          addNotification({
             title: "Lembrete Próximo",
             message: reminder.title,
             type: "info",
-            dueTime: `Vence em ${format(dueDateTime, "dd/MM/yyyy 'às' HH:mm")}`,
-            playSound: false, // ÁUDIO REMOVIDO
-            onAction: (id, action) => {
-              if (action === "complete") {
-                markAsCompleted(reminder.id)
-              } else if (action === "snooze") {
-                postponeReminder(reminder.id, 10)
-              }
-            },
+            autoCloseTime: 5000,
           })
 
           // Marcar como notificado
@@ -248,7 +223,7 @@ export function ReminderSystem() {
     const interval = setInterval(checkReminders, 60000)
 
     return () => clearInterval(interval)
-  }, [reminders, showNotification])
+  }, [reminders, addNotification])
 
   // Função para adiar um lembrete
   const postponeReminder = async (id: string, minutes: number) => {
@@ -275,7 +250,7 @@ export function ReminderSystem() {
       // Salvar no banco de dados
       await saveReminder(updatedReminder)
 
-      showNotification({
+      addNotification({
         title: "Lembrete Adiado",
         message: `O lembrete foi adiado por ${minutes} minutos`,
         type: "success",
@@ -283,7 +258,7 @@ export function ReminderSystem() {
       })
     } catch (error) {
       console.error("Erro ao adiar lembrete:", error)
-      showNotification({
+      addNotification({
         title: "Erro ao Adiar",
         message: "Não foi possível adiar o lembrete. Tente novamente.",
         type: "error",
@@ -423,19 +398,15 @@ export function ReminderSystem() {
       await saveReminder(newReminder)
 
       // Mostrar notificação de sucesso
-      showNotification({
+      addNotification({
         title: "Novo Lembrete Criado",
         message: newReminder.title,
         type: "success",
-        dueTime: `Vence em ${format(
-          new Date(`${newReminder.dueDate}T${newReminder.dueTime}:00`),
-          "dd/MM/yyyy 'às' HH:mm",
-        )}`,
         autoCloseTime: 5000,
       })
     } catch (error) {
       console.error("Erro ao adicionar lembrete:", error)
-      showNotification({
+      addNotification({
         title: "Erro ao Criar Lembrete",
         message: "Não foi possível criar o lembrete. Tente novamente.",
         type: "error",
@@ -472,7 +443,7 @@ export function ReminderSystem() {
       await saveReminder(updatedReminder)
 
       // Mostrar notificação de sucesso
-      showNotification({
+      addNotification({
         title: "Lembrete Atualizado",
         message: updatedReminder.title,
         type: "info",
@@ -480,7 +451,7 @@ export function ReminderSystem() {
       })
     } catch (error) {
       console.error("Erro ao atualizar lembrete:", error)
-      showNotification({
+      addNotification({
         title: "Erro ao Atualizar Lembrete",
         message: "Não foi possível atualizar o lembrete. Tente novamente.",
         type: "error",
@@ -503,7 +474,7 @@ export function ReminderSystem() {
       await deleteReminder(id)
 
       // Mostrar notificação de sucesso
-      showNotification({
+      addNotification({
         title: "Lembrete Excluído",
         message: reminderToDelete.title,
         type: "info",
@@ -511,7 +482,7 @@ export function ReminderSystem() {
       })
     } catch (error) {
       console.error("Erro ao excluir lembrete:", error)
-      showNotification({
+      addNotification({
         title: "Erro ao Excluir Lembrete",
         message: "Não foi possível excluir o lembrete. Tente novamente.",
         type: "error",
@@ -533,7 +504,7 @@ export function ReminderSystem() {
       await deleteReminder(id)
 
       // Mostrar notificação de sucesso
-      showNotification({
+      addNotification({
         title: "Lembrete Arquivado Excluído",
         message: reminderToDelete.title,
         type: "info",
@@ -541,7 +512,7 @@ export function ReminderSystem() {
       })
     } catch (error) {
       console.error("Erro ao excluir lembrete arquivado:", error)
-      showNotification({
+      addNotification({
         title: "Erro ao Excluir Lembrete",
         message: "Não foi possível excluir o lembrete arquivado. Tente novamente.",
         type: "error",
@@ -571,7 +542,7 @@ export function ReminderSystem() {
       await saveReminder(completedReminder)
 
       // Mostrar notificação de sucesso
-      showNotification({
+      addNotification({
         title: "Lembrete Concluído",
         message: reminderToComplete.title,
         type: "success",
@@ -579,7 +550,7 @@ export function ReminderSystem() {
       })
     } catch (error) {
       console.error("Erro ao marcar lembrete como concluído:", error)
-      showNotification({
+      addNotification({
         title: "Erro ao Concluir Lembrete",
         message: "Não foi possível marcar o lembrete como concluído. Tente novamente.",
         type: "error",
@@ -605,7 +576,7 @@ export function ReminderSystem() {
       setArchivedReminders((prev) => [archivedReminderData, ...prev])
 
       // Mostrar notificação de sucesso
-      showNotification({
+      addNotification({
         title: "Lembrete Arquivado",
         message: reminderToArchive.title,
         type: "success",
@@ -613,7 +584,7 @@ export function ReminderSystem() {
       })
     } catch (error) {
       console.error("Erro ao arquivar lembrete:", error)
-      showNotification({
+      addNotification({
         title: "Erro ao Arquivar Lembrete",
         message: "Não foi possível arquivar o lembrete. Tente novamente.",
         type: "error",
@@ -638,7 +609,7 @@ export function ReminderSystem() {
       await loadRemindersFromDatabase()
 
       // Mostrar notificação de sucesso
-      showNotification({
+      addNotification({
         title: "Lembrete Restaurado",
         message: reminderToRestore.title,
         type: "success",
@@ -646,7 +617,7 @@ export function ReminderSystem() {
       })
     } catch (error) {
       console.error("Erro ao restaurar lembrete:", error)
-      showNotification({
+      addNotification({
         title: "Erro ao Restaurar Lembrete",
         message: "Não foi possível restaurar o lembrete. Tente novamente.",
         type: "error",
@@ -703,7 +674,7 @@ export function ReminderSystem() {
     }
 
     // Por fim, por data
-    return new Date(`${a.dueDate}T${a.dueTime}:00`).getTime() - new Date(`${b.dueDate}T${b.dueTime}:00`).getTime()
+    return new Date(`${a.dueDate}T${a.dueTime}:00`).getTime() - new Date(`${b.dueDate}T${a.dueTime}:00`).getTime()
   })
 
   // Ordenar lembretes arquivados por data de conclusão (mais recentes primeiro)

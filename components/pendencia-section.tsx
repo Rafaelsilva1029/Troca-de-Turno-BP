@@ -26,6 +26,13 @@ interface PendenciaSectionProps {
 // Status do auto-salvamento
 type AutoSaveStatus = "idle" | "saving" | "saved" | "error"
 
+// Declarar a função global para adicionar pendências recentes
+declare global {
+  interface Window {
+    addPendenciaRecente?: (category: string, description: string, action: "added" | "updated" | "removed") => void
+  }
+}
+
 export function PendenciaSection({ title, context, onAutoSave }: PendenciaSectionProps) {
   const { pendenciasData, updatePendenciasData, openReportModal, openLiberarPendenciaModal } = context
 
@@ -39,15 +46,54 @@ export function PendenciaSection({ title, context, onAutoSave }: PendenciaSectio
   const [pendencias, setPendencias] = useState<string[]>([])
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle")
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const previousPendenciasRef = useRef<string[]>([])
 
   // Inicializar pendências do contexto
   useEffect(() => {
     if (pendenciasData[slug]) {
       setPendencias(pendenciasData[slug])
+      previousPendenciasRef.current = [...pendenciasData[slug]]
     } else {
       setPendencias([""])
+      previousPendenciasRef.current = [""]
     }
   }, [pendenciasData, slug])
+
+  // Função para detectar mudanças e registrar em pendências recentes
+  const detectChangesAndLog = (newPendencias: string[], oldPendencias: string[]) => {
+    if (!window.addPendenciaRecente) return
+
+    const newFiltered = newPendencias.filter((p) => p.trim() !== "")
+    const oldFiltered = oldPendencias.filter((p) => p.trim() !== "")
+
+    // Detectar pendências adicionadas
+    newFiltered.forEach((pendencia) => {
+      if (!oldFiltered.includes(pendencia)) {
+        window.addPendenciaRecente!(slug, pendencia, "added")
+      }
+    })
+
+    // Detectar pendências removidas
+    oldFiltered.forEach((pendencia) => {
+      if (!newFiltered.includes(pendencia)) {
+        window.addPendenciaRecente!(slug, pendencia, "removed")
+      }
+    })
+
+    // Detectar pendências atualizadas (mais complexo, por simplicidade vamos detectar quando há mudança no conteúdo)
+    if (newFiltered.length === oldFiltered.length) {
+      newFiltered.forEach((pendencia, index) => {
+        if (
+          oldFiltered[index] &&
+          pendencia !== oldFiltered[index] &&
+          pendencia.trim() !== "" &&
+          oldFiltered[index].trim() !== ""
+        ) {
+          window.addPendenciaRecente!(slug, pendencia, "updated")
+        }
+      })
+    }
+  }
 
   // Função para adicionar uma nova pendência
   const addPendencia = () => {
@@ -59,22 +105,42 @@ export function PendenciaSection({ title, context, onAutoSave }: PendenciaSectio
 
   // Função para atualizar uma pendência existente
   const updatePendencia = (index: number, value: string) => {
+    const oldPendencias = [...pendencias]
     const newPendencias = [...pendencias]
     newPendencias[index] = value
     setPendencias(newPendencias)
     updatePendenciasData(slug, newPendencias)
+
+    // Detectar mudanças apenas se o valor não estiver vazio e for diferente do anterior
+    if (value.trim() !== "" && oldPendencias[index] !== value) {
+      setTimeout(() => {
+        detectChangesAndLog(newPendencias, previousPendenciasRef.current)
+        previousPendenciasRef.current = [...newPendencias]
+      }, 100)
+    }
+
     triggerAutoSave(newPendencias)
   }
 
   // Função para remover uma pendência
   const removePendencia = (index: number) => {
+    const oldPendencias = [...pendencias]
     const newPendencias = [...pendencias]
+
+    // Registrar a remoção se a pendência não estava vazia
+    if (newPendencias[index].trim() !== "") {
+      if (window.addPendenciaRecente) {
+        window.addPendenciaRecente(slug, newPendencias[index], "removed")
+      }
+    }
+
     newPendencias.splice(index, 1)
     if (newPendencias.length === 0) {
       newPendencias.push("")
     }
     setPendencias(newPendencias)
     updatePendenciasData(slug, newPendencias)
+    previousPendenciasRef.current = [...newPendencias]
     triggerAutoSave(newPendencias)
   }
 
@@ -183,23 +249,27 @@ export function PendenciaSection({ title, context, onAutoSave }: PendenciaSectio
                 className="flex-1 bg-slate-800 border-slate-700 min-h-[80px]"
               />
               <div className="flex flex-col space-y-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-slate-500 hover:text-red-500"
-                  onClick={() => removePendencia(index)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
                 {pendencia.trim() !== "" && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-slate-500 hover:text-green-500"
-                    onClick={() => openLiberarPendenciaModal(slug, pendencia)}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-slate-500 hover:text-green-500"
+                      onClick={() => openLiberarPendenciaModal(slug, pendencia)}
+                      title="Finalizar pendência"
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-slate-500 hover:text-red-500"
+                      onClick={() => removePendencia(index)}
+                      title="Remover pendência"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
