@@ -70,16 +70,32 @@ module.exports = {
           "0%": { transform: "rotate(0deg)" },
           "100%": { transform: "rotate(360deg)" },
         },
-        "spin-slower": {
-          "0%": { transform: "rotate(0deg)" },
-          "100%": { transform: "rotate(-360deg)" },
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
+        "pulse-glow": {
+          "0%, 100%": {
+            opacity: 1,
+            boxShadow: "0 0 0 0 rgba(34, 197, 94, 0.4)",
+          },
+          "50%": {
+            opacity: 0.8,
+            boxShadow: "0 0 0 10px rgba(34, 197, 94, 0)",
+          },
+        },
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-10px)" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "spin-slow": "spin-slow 3s linear infinite",
-        "spin-slower": "spin-slower 6s linear infinite",
+        "spin-slow": "spin-slow 20s linear infinite",
+        shimmer: "shimmer 2s infinite",
+        "pulse-glow": "pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        float: "float 3s ease-in-out infinite",
       },
     },
   },
