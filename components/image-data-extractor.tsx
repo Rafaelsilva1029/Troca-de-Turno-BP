@@ -2,206 +2,303 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Loader2, FileSpreadsheet } from "lucide-react"
-import * as XLSX from "xlsx"
+import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
+import { Loader2, Upload, ImageIcon, FileText, Check, AlertCircle } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-interface ExtractedData {
-  Agendamento: string
-  Frota: string
+interface ImageDataExtractorProps {
+  onDataExtracted: (data: { frota: string; horario: string }[]) => void
 }
 
-export function ImageDataExtractor() {
+export function ImageDataExtractor({ onDataExtracted }: ImageDataExtractorProps) {
+  // Estados
+  const [isUploading, setIsUploading] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [extractedData, setExtractedData] = useState<ExtractedData[]>([])
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [extractedText, setExtractedText] = useState<string>("")
+  const [extractedData, setExtractedData] = useState<{ frota: string; horario: string }[]>([])
+  const [error, setError] = useState<string | null>(null)
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Refs
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Função para lidar com o upload da imagem
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
     // Verificar se é uma imagem
     if (!file.type.startsWith("image/")) {
-      toast({
-        title: "Erro",
-        description: "Por favor, selecione um arquivo de imagem válido.",
-        variant: "destructive",
-      })
+      setError("Por favor, selecione um arquivo de imagem válido.")
       return
     }
 
-    // Mostrar preview da imagem
+    setIsUploading(true)
+    setError(null)
+
+    // Criar preview da imagem
     const reader = new FileReader()
     reader.onload = (e) => {
       setImagePreview(e.target?.result as string)
+      setIsUploading(false)
+
+      // Processar a imagem automaticamente
+      processImage(file)
+    }
+    reader.onerror = () => {
+      setError("Erro ao ler o arquivo de imagem.")
+      setIsUploading(false)
     }
     reader.readAsDataURL(file)
+  }
 
+  // Função para processar a imagem
+  const processImage = async (file: File) => {
     setIsProcessing(true)
-    setExtractedData([])
+    setError(null)
 
     try {
-      // Em um ambiente real, usaríamos OCR
-      // Aqui, usamos dados pré-definidos para demonstração
+      // Simular processamento OCR
+      // Em um cenário real, você enviaria a imagem para um serviço OCR como Tesseract.js, Google Vision API, etc.
+      await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulação de processamento
 
-      // Simular processamento
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Texto extraído simulado
+      const simulatedText = `
+      FROTA: 6597 HORÁRIO: 04:00
+      FROTA: 8805 HORÁRIO: 08:00
+      FROTA: 4597 HORÁRIO: 14:30
+      FROTA: 6602 HORÁRIO: 02:00
+      `
 
-      // Dados extraídos da imagem de exemplo
-      const dadosExtraidos: ExtractedData[] = [
-        { Agendamento: "07:00:00", Frota: "8001" },
-        { Agendamento: "08:00:00", Frota: "8799" },
-        { Agendamento: "09:10:00", Frota: "8794" },
-        { Agendamento: "12:00:00", Frota: "4567" },
-        { Agendamento: "13:00:00", Frota: "40167" },
-        { Agendamento: "15:10:00", Frota: "32231" },
-        { Agendamento: "16:00:00", Frota: "8798" },
-        { Agendamento: "17:15:00", Frota: "4611" },
-        { Agendamento: "20:00:00", Frota: "4576" },
-        { Agendamento: "22:30:00", Frota: "4599" },
-        { Agendamento: "23:30:00", Frota: "4595" },
-        { Agendamento: "00:30:00", Frota: "4580" },
-        { Agendamento: "01:00:00", Frota: "4566" },
-        { Agendamento: "04:00:00", Frota: "4602" },
-        { Agendamento: "05:00:00", Frota: "4620" },
-        { Agendamento: "06:00:00", Frota: "8818" },
-      ]
+      setExtractedText(simulatedText)
 
-      // Filtrar linhas de REFEIÇÃO
-      const dadosFiltrados = dadosExtraidos.filter(
-        (item) => item.Agendamento !== "11:00:00" && item.Agendamento !== "19:00:00" && item.Agendamento !== "03:00:00",
-      )
+      // Extrair dados estruturados do texto
+      const data = extractDataFromText(simulatedText)
+      setExtractedData(data)
 
-      setExtractedData(dadosFiltrados)
+      // Notificar o componente pai
+      onDataExtracted(data)
 
       toast({
-        title: "Sucesso",
-        description: `${dadosFiltrados.length} agendamentos extraídos da imagem.`,
+        title: "Processamento concluído",
+        description: `Foram extraídos dados de ${data.length} veículos.`,
       })
     } catch (error) {
       console.error("Erro ao processar imagem:", error)
-      toast({
-        title: "Erro",
-        description: "Ocorreu um erro ao processar a imagem. Por favor, tente novamente.",
-        variant: "destructive",
-      })
+      setError("Ocorreu um erro ao processar a imagem. Tente novamente.")
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const exportToExcel = () => {
-    if (extractedData.length === 0) {
-      toast({
-        title: "Aviso",
-        description: "Não há dados para exportar.",
-        variant: "destructive",
+  // Função para extrair dados estruturados do texto
+  const extractDataFromText = (text: string): { frota: string; horario: string }[] => {
+    const data: { frota: string; horario: string }[] = []
+
+    // Expressão regular para encontrar padrões de frota e horário
+    const regex = /FROTA:?\s*(\d+).*?HORÁRIO:?\s*(\d{1,2}:\d{2})/gi
+
+    let match
+    while ((match = regex.exec(text)) !== null) {
+      data.push({
+        frota: match[1].trim(),
+        horario: match[2].trim(),
       })
+    }
+
+    return data
+  }
+
+  // Função para lidar com o clique no botão de upload
+  const handleUploadClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  // Função para editar o texto extraído manualmente
+  const handleTextEdit = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setExtractedText(e.target.value)
+  }
+
+  // Função para processar o texto editado
+  const processEditedText = () => {
+    if (!extractedText.trim()) {
+      setError("O texto extraído está vazio.")
       return
     }
 
     try {
-      // Criar worksheet
-      const ws = XLSX.utils.json_to_sheet(extractedData)
+      const data = extractDataFromText(extractedText)
 
-      // Definir largura das colunas
-      const colWidths = [
-        { wch: 15 }, // Agendamento
-        { wch: 10 }, // Frota
-      ]
-      ws["!cols"] = colWidths
+      if (data.length === 0) {
+        setError("Não foi possível extrair dados do texto. Verifique o formato.")
+        return
+      }
 
-      // Criar workbook e adicionar a worksheet
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, "Agendamentos")
+      setExtractedData(data)
 
-      // Gerar arquivo e fazer download
-      XLSX.writeFile(wb, "agendamentos-extraidos.xlsx")
+      // Notificar o componente pai
+      onDataExtracted(data)
 
       toast({
-        title: "Sucesso",
-        description: "Dados exportados para Excel com sucesso!",
+        title: "Processamento concluído",
+        description: `Foram extraídos dados de ${data.length} veículos.`,
       })
     } catch (error) {
-      console.error("Erro ao exportar para Excel:", error)
-      toast({
-        title: "Erro",
-        description: "Ocorreu um erro ao exportar os dados. Por favor, tente novamente.",
-        variant: "destructive",
-      })
+      console.error("Erro ao processar texto editado:", error)
+      setError("Ocorreu um erro ao processar o texto. Verifique o formato.")
     }
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader className="bg-[#1e2a38] text-white">
-        <CardTitle>Extrator de Dados de Agendamentos</CardTitle>
-      </CardHeader>
-      <CardContent className="p-4 space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="image-upload">Selecione uma imagem da tabela</Label>
-          <Input
-            id="image-upload"
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            disabled={isProcessing}
-            className="cursor-pointer"
-          />
+    <div className="space-y-4">
+      {/* Área de upload */}
+      <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+        <ImageIcon className="h-12 w-12 text-gray-400 mb-4" />
+        <h3 className="text-lg font-medium mb-2">Arraste e solte uma imagem ou clique para selecionar</h3>
+        <p className="text-sm text-gray-500 mb-4">Formatos suportados: .jpg, .jpeg, .png</p>
+        <Button onClick={handleUploadClick} className="flex items-center">
+          <Upload className="mr-2 h-4 w-4" />
+          Selecionar Imagem
+        </Button>
+        <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+      </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Erro</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Preview e resultados */}
+      {imagePreview && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Preview da imagem */}
+          <Card>
+            <CardContent className="p-4">
+              <Label className="block mb-2 text-sm font-medium">Imagem Carregada</Label>
+              <div className="relative border rounded-md overflow-hidden">
+                <img
+                  src={imagePreview || "/placeholder.svg"}
+                  alt="Preview"
+                  className="w-full h-auto max-h-[300px] object-contain"
+                />
+                {isProcessing && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <div className="text-white text-center">
+                      <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                      <p className="text-sm">Processando imagem...</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Texto extraído */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex justify-between items-center mb-2">
+                <Label className="block text-sm font-medium">Texto Extraído</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={processEditedText}
+                  disabled={isProcessing || !extractedText.trim()}
+                >
+                  <FileText className="h-3 w-3 mr-1" />
+                  Processar
+                </Button>
+              </div>
+              <Textarea
+                value={extractedText}
+                onChange={handleTextEdit}
+                placeholder="O texto extraído da imagem aparecerá aqui. Você pode editar manualmente se necessário."
+                className="min-h-[200px] font-mono text-sm"
+                disabled={isProcessing}
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                Dica: Você pode editar o texto acima e clicar em "Processar" para atualizar os dados extraídos.
+              </p>
+            </CardContent>
+          </Card>
         </div>
+      )}
 
-        {imagePreview && (
-          <div className="space-y-2">
-            <Label>Imagem selecionada</Label>
-            <div className="border rounded-md overflow-hidden">
-              <img src={imagePreview || "/placeholder.svg"} alt="Preview" className="max-w-full h-auto" />
-            </div>
-          </div>
-        )}
-
-        {isProcessing && (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-6 w-6 animate-spin text-blue-600 mr-2" />
-            <p>Processando imagem...</p>
-          </div>
-        )}
-
-        {extractedData.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label>Dados extraídos ({extractedData.length} registros)</Label>
-              <Button variant="outline" size="sm" onClick={exportToExcel} className="flex items-center gap-1">
-                <FileSpreadsheet className="h-4 w-4" />
-                Exportar Excel
+      {/* Dados extraídos */}
+      {extractedData.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center mb-2">
+              <Label className="block text-sm font-medium">Dados Extraídos</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onDataExtracted(extractedData)}
+                className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200"
+              >
+                <Check className="h-3 w-3 mr-1" />
+                Continuar com estes dados
               </Button>
             </div>
-
-            <div className="border rounded-md overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-300 px-4 py-2 text-left">Agendamento</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">Frota</th>
+            <div className="border rounded-md overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th
+                      scope="col"
+                      className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      Frota
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      Horário
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-white divide-y divide-gray-200">
                   {extractedData.map((item, index) => (
                     <tr key={index} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                      <td className="border border-gray-300 px-4 py-2">{item.Agendamento}</td>
-                      <td className="border border-gray-300 px-4 py-2">{item.Frota}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">{item.frota}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">{item.horario}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            <p className="text-xs text-gray-500 mt-2">
+              Nota: Ao continuar, estes dados serão convertidos em registros completos com valores padrão para os campos
+              não extraídos.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Instruções */}
+      <Alert className="bg-blue-50 border-blue-200">
+        <AlertCircle className="h-4 w-4 text-blue-600" />
+        <AlertTitle className="text-blue-800">Como usar o extrator de dados de imagem</AlertTitle>
+        <AlertDescription className="text-blue-700">
+          <ol className="list-decimal pl-5 mt-2 space-y-1 text-sm">
+            <li>Carregue uma imagem que contenha uma tabela ou lista de frotas e horários</li>
+            <li>O sistema tentará extrair automaticamente os dados da imagem</li>
+            <li>Você pode editar o texto extraído manualmente se necessário</li>
+            <li>Clique em "Processar" para atualizar os dados extraídos</li>
+            <li>Verifique os dados extraídos e clique em "Continuar com estes dados"</li>
+          </ol>
+        </AlertDescription>
+      </Alert>
+    </div>
   )
 }
+
+export default ImageDataExtractor

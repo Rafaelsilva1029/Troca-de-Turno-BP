@@ -63,6 +63,7 @@ import {
   Pie,
   Cell,
 } from "recharts"
+import { ImportMaintenanceData } from "@/components/import-maintenance-data"
 
 // Tipos
 interface MaintenanceRecord {
@@ -167,7 +168,6 @@ export function WashingLubricationControl() {
   const [dialogoAdicionar, setDialogoAdicionar] = useState(false)
   const [dialogoEditar, setDialogoEditar] = useState(false)
   const [registroSelecionado, setRegistroSelecionado] = useState<MaintenanceRecord | null>(null)
-  const [dialogoInicializarBd, setDialogoInicializarB  = useState<MaintenanceRecord | null>(null)\
   const [dialogoInicializarBd, setDialogoInicializarBd] = useState(false)
   const [dialogoImportar, setDialogoImportar] = useState(false)
 
@@ -545,17 +545,20 @@ export function WashingLubricationControl() {
   const copiarSQL = () => {
     const sqlScript = `-- Script SQL para criar a tabela maintenance_records
 CREATE TABLE IF NOT EXISTS maintenance_records (
-    id SERIAL PRIMARY KEY,
-    frota VARCHAR(50) NOT NULL,
-    local VARCHAR(100) NOT NULL,
-    tipo_preventiva VARCHAR(100) NOT NULL,
-    data_programada DATE NOT NULL,
-    data_realizada DATE,
-    situacao VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' CHECK (situacao IN ('PENDENTE', 'ENCERRADO', 'EM_ANDAMENTO')),
-    horario_agendado TIME NOT NULL,
-    observacao TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+   id SERIAL PRIMARY KEY,
+   frota VARCHAR(50) NOT NULL,
+   local VARCHAR(100) NOT NULL,
+   tipo_preventiva VARCHAR(100) NOT NULL,
+   data_programada DATE NOT NULL,
+   data_realizada DATE,
+   situacao VARCHAR(  NOT NULL,
+   data_programada DATE NOT NULL,
+   data_realizada DATE,
+   situacao VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' CHECK (situacao IN ('PENDENTE', 'ENCERRADO', 'EM_ANDAMENTO')),
+   horario_agendado TIME NOT NULL,
+   observacao TEXT,
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Criar índices para melhor performance
@@ -634,10 +637,7 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
       setExportando(true)
 
       const workbook = XLSX.utils.book_new()
-      const worksheet = XLSX.utils.new_sheet()
-
-      // Definir cabeçalhos
-      XLSX.utils.sheet_add_aoa(worksheet, [
+      const worksheet = XLSX.utils.aoa_to_sheet([
         [
           "Frota",
           "Local",
@@ -648,7 +648,22 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
           "Horário Agendado",
           "Observação",
         ],
+        ["6597", "LAVADOR", "Lavagem / Lubrificação", "26/01/2025", "", "PENDENTE", "04:00", "TROCA DE ÓLEO"],
+        ["8805", "LAVADOR", "Lavagem", "27/01/2025", "", "PENDENTE", "08:00", "EM VIAGEM"],
       ])
+
+      // Ajustar largura das colunas
+      const colWidths = [
+        { wch: 10 }, // Frota
+        { wch: 15 }, // Local
+        { wch: 20 }, // Tipo Preventiva
+        { wch: 15 }, // Data Programada
+        { wch: 15 }, // Data Realizada
+        { wch: 12 }, // Situação
+        { wch: 15 }, // Horário Agendado
+        { wch: 30 }, // Observação
+      ]
+      worksheet["!cols"] = colWidths
 
       XLSX.utils.book_append_sheet(workbook, worksheet, "Modelo de Importação")
       XLSX.writeFile(workbook, "modelo-importacao-lavagem-lubrificacao.xlsx")
@@ -1417,36 +1432,36 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
               <pre className="whitespace-pre-wrap text-xs">
                 {`-- Script SQL para criar a tabela maintenance_records
 CREATE TABLE IF NOT EXISTS maintenance_records (
-    id SERIAL PRIMARY KEY,
-    frota VARCHAR(50) NOT NULL,
-    local VARCHAR(100) NOT NULL,
-    tipo_preventiva VARCHAR(100) NOT NULL,
-    data_programada DATE NOT NULL,
-    data_realizada DATE,
-    situacao VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' 
-        CHECK (situacao IN ('PENDENTE', 'ENCERRADO', 'EM_ANDAMENTO')),
-    horario_agendado TIME NOT NULL,
-    observacao TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+   id SERIAL PRIMARY KEY,
+   frota VARCHAR(50) NOT NULL,
+   local VARCHAR(100) NOT NULL,
+   tipo_preventiva VARCHAR(100) NOT NULL,
+   data_programada DATE NOT NULL,
+   data_realizada DATE,
+   situacao VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' 
+       CHECK (situacao IN ('PENDENTE', 'ENCERRADO', 'EM_ANDAMENTO')),
+   horario_agendado TIME NOT NULL,
+   observacao TEXT,
+   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Criar índices para melhor performance
 CREATE INDEX IF NOT EXISTS idx_maintenance_records_frota 
-    ON maintenance_records(frota);
+   ON maintenance_records(frota);
 CREATE INDEX IF NOT EXISTS idx_maintenance_records_situacao 
-    ON maintenance_records(situacao);
+   ON maintenance_records(situacao);
 CREATE INDEX IF NOT EXISTS idx_maintenance_records_data_programada 
-    ON maintenance_records(data_programada);
+   ON maintenance_records(data_programada);
 
 -- Inserir dados de exemplo
 INSERT INTO maintenance_records 
-    (frota, local, tipo_preventiva, data_programada, situacao, horario_agendado, observacao) 
+   (frota, local, tipo_preventiva, data_programada, situacao, horario_agendado, observacao) 
 VALUES
-    ('6597', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-26', 'PENDENTE', '04:00', 'TROCA DE ÓLEO'),
-    ('8805', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-27', 'PENDENTE', '08:00', 'EM VIAGEM'),
-    ('4597', 'LUBRIFICADOR', 'lubrificacao', '2025-01-28', 'EM_ANDAMENTO', '14:30', 'Aguardando peças'),
-    ('6602', 'MECANICO', 'troca_oleo', '2025-01-25', 'ENCERRADO', '02:00', 'Concluído com sucesso');`}
+   ('6597', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-26', 'PENDENTE', '04:00', 'TROCA DE ÓLEO'),
+   ('8805', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-27', 'PENDENTE', '08:00', 'EM VIAGEM'),
+   ('4597', 'LUBRIFICADOR', 'lubrificacao', '2025-01-28', 'EM_ANDAMENTO', '14:30', 'Aguardando peças'),
+   ('6602', 'MECANICO', 'troca_oleo', '2025-01-25', 'ENCERRADO', '02:00', 'Concluído com sucesso');`}
               </pre>
             </div>
           </div>
@@ -1637,4 +1652,126 @@ VALUES
                         <SelectItem key={local.value} value={local.value}>
                           {local.label}
                         </SelectItem>
-                      \
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-tipo_preventiva">Tipo Preventiva *</Label>
+                <Select
+                  value={registroSelecionado.tipo_preventiva}
+                  onValueChange={(value) => setRegistroSelecionado({ ...registroSelecionado, tipo_preventiva: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tiposPreventiva.map((tipo) => (
+                      <SelectItem key={tipo.value} value={tipo.value}>
+                        {tipo.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-data_programada">Data Programada *</Label>
+                  <Input
+                    id="edit-data_programada"
+                    type="date"
+                    value={registroSelecionado.data_programada}
+                    onChange={(e) =>
+                      setRegistroSelecionado({ ...registroSelecionado, data_programada: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-data_realizada">Data Realizada</Label>
+                  <Input
+                    id="edit-data_realizada"
+                    type="date"
+                    value={registroSelecionado.data_realizada || ""}
+                    onChange={(e) =>
+                      setRegistroSelecionado({ ...registroSelecionado, data_realizada: e.target.value || undefined })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-horario_agendado">Horário Agendado *</Label>
+                  <Input
+                    id="edit-horario_agendado"
+                    type="time"
+                    value={registroSelecionado.horario_agendado}
+                    onChange={(e) =>
+                      setRegistroSelecionado({ ...registroSelecionado, horario_agendado: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-situacao">Situação</Label>
+                  <Select
+                    value={registroSelecionado.situacao}
+                    onValueChange={(value: "PENDENTE" | "ENCERRADO" | "EM_ANDAMENTO") =>
+                      setRegistroSelecionado({
+                        ...registroSelecionado,
+                        situacao: value,
+                        data_realizada:
+                          value === "ENCERRADO" ? format(new Date(), "yyyy-MM-dd") : registroSelecionado.data_realizada,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a situação" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PENDENTE">PENDENTE</SelectItem>
+                      <SelectItem value="EM_ANDAMENTO">ANDAMENTO</SelectItem>
+                      <SelectItem value="ENCERRADO">ENCERRADO</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-observacao">Observação</Label>
+                <Input
+                  id="edit-observacao"
+                  value={registroSelecionado.observacao || ""}
+                  onChange={(e) => setRegistroSelecionado({ ...registroSelecionado, observacao: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogoEditar(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={atualizarRegistro} disabled={carregando}>
+              {carregando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Componente de importação */}
+      <ImportMaintenanceData
+        isOpen={dialogoImportar}
+        onClose={() => setDialogoImportar(false)}
+        onImport={importarRegistros}
+      />
+    </div>
+  )
+}
+
+// Exportações
+export default WashingLubricationControl
