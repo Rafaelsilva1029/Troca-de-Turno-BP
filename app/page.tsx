@@ -150,8 +150,18 @@ export default function TrocaDeTurno() {
     "veiculos-logistica": ["Veículo L-001 com problema no freio", "Veículo L-003 necessita troca de óleo"],
     "caminhoes-pipas": ["Caminhão P-002 com vazamento no tanque", "Caminhão P-005 com problema na bomba"],
     "caminhoes-munck": ["Munck M-001 com problema no sistema hidráulico"],
+    "caminhoes-coletas": [
+      "Caminhão C-001 com problema na compactação",
+      "Caminhão C-003 necessita manutenção hidráulica",
+    ],
+    "carretas-pranchas-ls-outros": [
+      "Carreta CR-001 com problema na suspensão",
+      "Prancha PR-002 necessita manutenção no sistema hidráulico",
+      "LS-003 com problema no engate",
+    ],
     "caminhoes-prancha-vinhaca-muda": ["Prancha PR-003 com problema na suspensão"],
     "caminhoes-cacambas": ["Caçamba C-002 com problema na tampa traseira"],
+    "trator-reboque": ["Trator TR-001 com problema no motor", "Reboque RB-002 necessita manutenção nos freios"],
     "area-de-vivencias": ["Área A-001 necessita manutenção no ar condicionado"],
     "carretinhas-rtk": ["Carretinha RTK-005 com problema na antena"],
     "tanques-e-dolly": ["Tanque T-003 com vazamento", "Dolly D-001 com problema no engate"],
@@ -194,8 +204,11 @@ export default function TrocaDeTurno() {
         "veiculos-logistica",
         "caminhoes-pipas",
         "caminhoes-munck",
+        "caminhoes-coletas",
+        "carretas-pranchas-ls-outros",
         "caminhoes-prancha-vinhaca-muda",
         "caminhoes-cacambas",
+        "trator-reboque",
         "area-de-vivencias",
         "carretinhas-rtk",
         "tanques-e-dolly",
@@ -447,8 +460,11 @@ export default function TrocaDeTurno() {
       "veiculos-logistica": "Veículos Logística",
       "caminhoes-pipas": "Caminhões Pipas",
       "caminhoes-munck": "Caminhões Munck",
+      "caminhoes-coletas": "Caminhões Coletas",
+      "carretas-pranchas-ls-outros": "Carretas / Pranchas / LS e outros",
       "caminhoes-prancha-vinhaca-muda": "Caminhões Prancha/Vinhaça/Muda",
       "caminhoes-cacambas": "Caminhões Caçambas",
+      "trator-reboque": "Trator Reboque",
       "area-de-vivencias": "Área de Vivências",
       "carretinhas-rtk": "Carretinhas RTK",
       "tanques-e-dolly": "Tanques e Dolly",
@@ -799,7 +815,7 @@ export default function TrocaDeTurno() {
   // const openReportModal = (category: string) => {
   //   setSelectedCategory(category)
   //   setReportType("single")
-  //   setIsReportModalOpen(true)
+  //   setIsReportModalOpen(true
   // }
 
   // Open liberar pendência modal
@@ -1305,8 +1321,11 @@ export default function TrocaDeTurno() {
                               "Veículos Logística",
                               "Caminhões Pipas",
                               "Caminhões Munck",
+                              "Caminhões Coletas",
+                              "Carretas / Pranchas / LS e outros",
                               "Caminhões Prancha/Vinhaça/Muda",
                               "Caminhões Caçambas",
+                              "Trator Reboque",
                               "Área de Vivências",
                               "Carretinhas RTK",
                               "Tanques e Dolly",
