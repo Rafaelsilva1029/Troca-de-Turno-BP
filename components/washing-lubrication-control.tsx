@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,6 +36,10 @@ import {
   Search,
   SlidersHorizontal,
   Trash2,
+  Plus,
+  Wifi,
+  WifiOff,
+  Copy,
 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -56,24 +60,20 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  Sector,
 } from "recharts"
 
 // Tipos
 interface MaintenanceRecord {
   id: number
   frota: string
-  descricao_ponto: string
+  local: string
   tipo_preventiva: string
   data_programada: string
   data_realizada?: string
   situacao: "PENDENTE" | "ENCERRADO" | "EM_ANDAMENTO"
   horario_agendado: string
   observacao?: string
+  created_at?: string
   updated_at?: string
 }
 
@@ -85,224 +85,97 @@ const tiposPreventiva = [
   { value: "lavagem_completa", label: "Lavagem Completa" },
 ]
 
-const descricoesPonto = [
+const locais = [
   { value: "LAVADOR", label: "LAVADOR" },
   { value: "LUBRIFICADOR", label: "LUBRIFICADOR" },
   { value: "MECANICO", label: "MECÂNICO" },
+  { value: "OFICINA", label: "OFICINA" },
+  { value: "PATIO", label: "PÁTIO" },
 ]
 
-// Dados locais para fallback
-const dadosLocais: MaintenanceRecord[] = [
+// Dados de exemplo para inicialização
+const dadosExemplo: MaintenanceRecord[] = [
   {
     id: 1,
     frota: "6597",
-    descricao_ponto: "LAVADOR",
+    local: "LAVADOR",
     tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-11",
+    data_programada: "2025-01-26",
     situacao: "PENDENTE",
     horario_agendado: "04:00",
     observacao: "TROCA DE ÓLEO",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
     id: 2,
     frota: "8805",
-    descricao_ponto: "LAVADOR",
+    local: "LAVADOR",
     tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-17",
+    data_programada: "2025-01-27",
     situacao: "PENDENTE",
     horario_agendado: "08:00",
     observacao: "EM VIAGEM",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
     id: 3,
     frota: "4597",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-18",
-    situacao: "PENDENTE",
+    local: "LUBRIFICADOR",
+    tipo_preventiva: "lubrificacao",
+    data_programada: "2025-01-28",
+    situacao: "EM_ANDAMENTO",
     horario_agendado: "14:30",
-    observacao: "EM VIAGEM",
+    observacao: "Aguardando peças",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
   {
     id: 4,
     frota: "6602",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-18",
-    situacao: "PENDENTE",
+    local: "MECANICO",
+    tipo_preventiva: "troca_oleo",
+    data_programada: "2025-01-25",
+    data_realizada: "2025-01-25",
+    situacao: "ENCERRADO",
     horario_agendado: "02:00",
-    observacao: "OFICINA GABELIM",
-  },
-  {
-    id: 5,
-    frota: "4583",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-19",
-    situacao: "PENDENTE",
-    horario_agendado: "20:00",
-    observacao: "TROCA DE ÓLEO",
-  },
-  {
-    id: 6,
-    frota: "4620",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-19",
-    situacao: "PENDENTE",
-    horario_agendado: "05:00",
-    observacao: "",
-  },
-  {
-    id: 7,
-    frota: "4581",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-20",
-    situacao: "PENDENTE",
-    horario_agendado: "20:00",
-    observacao: "TROCA DE ÓLEO",
-  },
-  {
-    id: 8,
-    frota: "8790",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-21",
-    data_realizada: "2025-05-21",
-    situacao: "ENCERRADO",
-    horario_agendado: "07:00",
-    observacao: "",
-  },
-  {
-    id: 9,
-    frota: "6597",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-21",
-    situacao: "PENDENTE",
-    horario_agendado: "08:00",
-    observacao: "Está fazendo coletas",
-  },
-  {
-    id: 10,
-    frota: "8793",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-21",
-    data_realizada: "2025-05-21",
-    situacao: "ENCERRADO",
-    horario_agendado: "13:00",
-    observacao: "",
-  },
-  {
-    id: 11,
-    frota: "32232",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-21",
-    data_realizada: "2025-05-21",
-    situacao: "ENCERRADO",
-    horario_agendado: "14:00",
-    observacao: "",
-  },
-  {
-    id: 12,
-    frota: "4575",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-21",
-    data_realizada: "2025-05-21",
-    situacao: "ENCERRADO",
-    horario_agendado: "15:00",
-    observacao: "Aguardando ao lado do lavador",
-  },
-  {
-    id: 13,
-    frota: "48004",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-21",
-    data_realizada: "2025-05-21",
-    situacao: "ENCERRADO",
-    horario_agendado: "00:00",
-    observacao: "",
-  },
-  {
-    id: 14,
-    frota: "4588",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-21",
-    data_realizada: "2025-05-21",
-    situacao: "ENCERRADO",
-    horario_agendado: "00:50",
-    observacao: "",
-  },
-  {
-    id: 15,
-    frota: "8799",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-21",
-    situacao: "PENDENTE",
-    horario_agendado: "02:00",
-    observacao: "Gabelim",
-  },
-  {
-    id: 16,
-    frota: "4616",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-21",
-    situacao: "PENDENTE",
-    horario_agendado: "04:00",
-    observacao: "",
-  },
-  {
-    id: 17,
-    frota: "8794",
-    descricao_ponto: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-05-21",
-    situacao: "PENDENTE",
-    horario_agendado: "05:40",
-    observacao: "",
+    observacao: "Concluído com sucesso",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   },
 ]
 
 export function WashingLubricationControl() {
-  // Estados
-  const [registros, setRegistros] = useState<MaintenanceRecord[]>([])
-  const [carregando, setCarregando] = useState(true)
-  const [atualizandoStatus, setAtualizandoStatus] = useState<number | null>(null)
+  // Estados principais
+  const [registros, setRegistros] = useState<MaintenanceRecord[]>(dadosExemplo)
+  const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
-  const [bdInicializado, setBdInicializado] = useState(false)
+  const [bdConectado, setBdConectado] = useState(false)
+  const [statusConexao, setStatusConexao] = useState<"conectando" | "conectado" | "erro" | "offline">("offline")
+
+  // Estados de filtros
   const [termoBusca, setTermoBusca] = useState("")
   const [filtroTipo, setFiltroTipo] = useState<string>("todos")
   const [filtroSituacao, setFiltroSituacao] = useState<string>("todos")
-  const [dataSelecionada, setDataSelecionada] = useState<Date | undefined>(new Date())
+  const [filtroLocal, setFiltroLocal] = useState<string>("todos")
+  const [dataSelecionada, setDataSelecionada] = useState<Date | undefined>()
+
+  // Estados de diálogos
   const [dialogoAdicionar, setDialogoAdicionar] = useState(false)
-  const [dialogoInicializarBd, setDialogoInicializarBd] = useState(false)
-  const [dialogoCriarTabela, setDialogoCriarTabela] = useState(false)
-  const [dialogoEditarRegistro, setDialogoEditarRegistro] = useState(false)
+  const [dialogoEditar, setDialogoEditar] = useState(false)
   const [registroSelecionado, setRegistroSelecionado] = useState<MaintenanceRecord | null>(null)
-  const [statusInicializacao, setStatusInicializacao] = useState<"idle" | "loading" | "success" | "error">("idle")
-  const [mensagemInicializacao, setMensagemInicializacao] = useState("")
-  const [filtroPeriodo, setFiltroPeriodo] = useState<{ de: Date | undefined; ate: Date | undefined }>({
-    de: undefined,
-    ate: undefined,
-  })
+  const [dialogoInicializarBd, setDialogoInicializarBd] = useState(false)
+
+  // Estados de operações
   const [exportando, setExportando] = useState(false)
-  const [criandoTabela, setCriandoTabela] = useState(false)
   const [sincronizando, setSincronizando] = useState(false)
-  const [activeIndexTipo, setActiveIndexTipo] = useState(0)
-  const [activeIndexSituacao, setActiveIndexSituacao] = useState(0)
+  const [atualizandoStatus, setAtualizandoStatus] = useState<number | null>(null)
 
   // Novo registro
   const [novoRegistro, setNovoRegistro] = useState<Omit<MaintenanceRecord, "id">>({
     frota: "",
-    descricao_ponto: "LAVADOR",
+    local: "LAVADOR",
     tipo_preventiva: "lavagem_lubrificacao",
     data_programada: format(new Date(), "yyyy-MM-dd"),
     situacao: "PENDENTE",
@@ -310,387 +183,287 @@ export function WashingLubricationControl() {
     observacao: "",
   })
 
-  // Refs para exportação
-  const relatorioRef = useRef<HTMLDivElement>(null)
+  // Ref para exportação
+  const tabelaRef = useRef<HTMLDivElement>(null)
 
-  // Inicialização
+  // Inicialização - tentar conectar com banco de dados
   useEffect(() => {
-    // Inicializar com dados locais imediatamente para melhor UX
-    setRegistros(dadosLocais)
-    setCarregando(false)
-
-    // Verificar banco de dados automaticamente na inicialização
-    verificarBancoDados()
+    tentarConectarBanco()
   }, [])
 
-  // Função para buscar registros do banco de dados
-  const buscarRegistros = async () => {
+  // Função para tentar conectar com banco
+  const tentarConectarBanco = async () => {
     try {
-      if (!bdInicializado) {
-        return false
-      }
+      setStatusConexao("conectando")
+      setErro(null)
 
       const supabase = getSupabaseClient()
-      const { data, error } = await supabase
-        .from("maintenance_records")
-        .select("*")
-        .order("data_programada", { ascending: false })
+
+      // Tentar carregar dados da tabela que agora existe
+      const { data, error } = await supabase.from("maintenance_records").select("*").order("id", { ascending: false })
 
       if (error) {
-        console.error("Erro ao buscar registros:", error)
-        return false
+        throw error
+      }
+
+      // Sucesso! Carregar dados do banco
+      if (data && data.length > 0) {
+        setRegistros(data)
+      }
+
+      setBdConectado(true)
+      setStatusConexao("conectado")
+
+      toast({
+        title: "Conectado",
+        description: `Sistema conectado! ${data?.length || 0} registros carregados do banco de dados.`,
+      })
+    } catch (error) {
+      console.error("Erro na conexão:", error)
+      setStatusConexao("offline")
+      setBdConectado(false)
+      setErro("Sistema funcionando offline com dados locais.")
+
+      toast({
+        title: "Modo Offline",
+        description: "Sistema funcionando com dados locais.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Função para carregar registros do banco
+  const carregarRegistrosDoBanco = async () => {
+    try {
+      const supabase = getSupabaseClient()
+
+      const { data, error } = await supabase.from("maintenance_records").select("*").order("id", { ascending: false })
+
+      if (error) {
+        throw error
       }
 
       if (data && data.length > 0) {
         setRegistros(data)
-        return true
-      } else {
-        console.log("Nenhum registro encontrado na tabela.")
-        return false
       }
-    } catch (err) {
-      console.error("Erro ao buscar registros:", err)
-      return false
+    } catch (error) {
+      console.error("Erro ao carregar registros:", error)
+      throw error
     }
   }
 
-  // Função para verificar o banco de dados
-  const verificarBancoDados = async () => {
-    setStatusInicializacao("loading")
-    setMensagemInicializacao("Verificando conexão com o banco de dados...")
+  // Função para gerar próximo ID
+  const gerarProximoId = () => {
+    return Math.max(...registros.map((r) => r.id), 0) + 1
+  }
 
+  // Função para adicionar registro
+  const adicionarRegistro = async () => {
     try {
-      // Usar dados locais como fallback inicial
-      setRegistros(dadosLocais)
+      setCarregando(true)
+      setErro(null)
 
-      try {
-        // Usar o cliente Supabase do singleton
-        const supabase = getSupabaseClient()
+      // Validações
+      if (!novoRegistro.frota.trim()) {
+        throw new Error("Frota é obrigatória")
+      }
+      if (!novoRegistro.data_programada) {
+        throw new Error("Data programada é obrigatória")
+      }
+      if (!novoRegistro.horario_agendado) {
+        throw new Error("Horário agendado é obrigatório")
+      }
 
-        setMensagemInicializacao("Verificando se a tabela existe...")
+      const novoId = gerarProximoId()
+      const registroCompleto: MaintenanceRecord = {
+        ...novoRegistro,
+        id: novoId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
 
-        // Verificar se a tabela existe
-        const { error } = await supabase.from("maintenance_records").select("id").limit(1)
+      if (bdConectado) {
+        // Tentar salvar no banco de dados
+        try {
+          const supabase = getSupabaseClient()
 
-        if (error) {
-          // Se a tabela não existir, mostrar mensagem e oferecer opção para criar
-          if (error.message && error.message.includes("does not exist")) {
-            setMensagemInicializacao(
-              "A tabela 'maintenance_records' não existe. Você pode criá-la clicando no botão abaixo.",
-            )
-            setStatusInicializacao("error")
-            setDialogoCriarTabela(true)
-            return
+          // Preparar dados para inserção no banco
+          const dadosParaBanco = {
+            frota: registroCompleto.frota,
+            local: registroCompleto.local,
+            tipo_preventiva: registroCompleto.tipo_preventiva,
+            data_programada: registroCompleto.data_programada,
+            data_realizada: registroCompleto.data_realizada || null,
+            situacao: registroCompleto.situacao,
+            horario_agendado: registroCompleto.horario_agendado,
+            observacao: registroCompleto.observacao || null,
+            created_at: registroCompleto.created_at,
+            updated_at: registroCompleto.updated_at,
           }
 
-          throw error
+          const { data, error } = await supabase.from("maintenance_records").insert([dadosParaBanco]).select()
+
+          if (error) {
+            throw error
+          }
+
+          // Sucesso no banco, usar dados retornados
+          setRegistros((prev) => [data[0], ...prev])
+        } catch (dbError) {
+          console.warn("Erro no banco, salvando localmente:", dbError)
+          // Salvar localmente se houver erro no banco
+          setRegistros((prev) => [registroCompleto, ...prev])
         }
-
-        // Tabela existe, buscar registros
-        setStatusInicializacao("success")
-        setMensagemInicializacao("Tabela encontrada! Carregando registros...")
-        setBdInicializado(true)
-
-        const { data, error: fetchError } = await supabase
-          .from("maintenance_records")
-          .select("*")
-          .order("data_programada", { ascending: false })
-
-        if (fetchError) {
-          throw new Error(`Erro ao buscar registros: ${fetchError.message}`)
-        }
-
-        if (data && data.length > 0) {
-          setRegistros(data)
-        } else {
-          // Se não houver dados, manter os dados locais
-          console.log("Nenhum registro encontrado na tabela. Usando dados locais.")
-        }
-      } catch (tableError) {
-        console.error("Erro ao verificar/buscar tabela:", tableError)
-
-        // Verificar se o erro é porque a tabela não existe
-        if (tableError instanceof Error && tableError.message.includes("does not exist")) {
-          setMensagemInicializacao(
-            "A tabela 'maintenance_records' não existe. Você pode criá-la clicando no botão abaixo.",
-          )
-          setStatusInicializacao("error")
-          setDialogoCriarTabela(true)
-          return
-        }
-
-        setStatusInicializacao("error")
-        setMensagemInicializacao(
-          `Erro ao verificar tabela: ${tableError instanceof Error ? tableError.message : String(tableError)}. Usando dados locais.`,
-        )
-        setBdInicializado(false)
+      } else {
+        // Salvar localmente
+        setRegistros((prev) => [registroCompleto, ...prev])
       }
-    } catch (err) {
-      console.error("Erro ao inicializar banco de dados:", err)
-      setStatusInicializacao("error")
-      setMensagemInicializacao(
-        `Erro ao conectar com o banco de dados: ${err instanceof Error ? err.message : String(err)}. Usando dados locais.`,
-      )
-      setBdInicializado(false)
+
+      // Limpar formulário
+      setNovoRegistro({
+        frota: "",
+        local: "LAVADOR",
+        tipo_preventiva: "lavagem_lubrificacao",
+        data_programada: format(new Date(), "yyyy-MM-dd"),
+        situacao: "PENDENTE",
+        horario_agendado: "08:00",
+        observacao: "",
+      })
+
+      setDialogoAdicionar(false)
+
+      toast({
+        title: "Sucesso",
+        description: `Registro adicionado ${bdConectado ? "no banco de dados" : "localmente"}!`,
+      })
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Erro desconhecido"
+      setErro(mensagem)
+      toast({
+        title: "Erro",
+        description: mensagem,
+        variant: "destructive",
+      })
     } finally {
       setCarregando(false)
     }
   }
 
-  // Função para popular a tabela com dados de exemplo
-  const popularTabela = async () => {
-    setCriandoTabela(true)
+  // Função para atualizar registro
+  const atualizarRegistro = async () => {
+    if (!registroSelecionado) return
 
     try {
-      const supabase = getSupabaseClient()
+      setCarregando(true)
+      setErro(null)
 
-      if (!supabase) {
-        throw new Error("Cliente Supabase não inicializado corretamente")
+      const registroAtualizado = {
+        ...registroSelecionado,
+        updated_at: new Date().toISOString(),
       }
 
-      console.log("Verificando se a tabela existe...")
+      if (bdConectado) {
+        // Tentar atualizar no banco de dados
+        try {
+          const supabase = getSupabaseClient()
 
-      // Verificar se a tabela existe
-      const { error: checkError } = await supabase.from("maintenance_records").select("id").limit(1)
+          // Preparar dados para atualização no banco
+          const dadosParaAtualizacao = {
+            frota: registroAtualizado.frota,
+            local: registroAtualizado.local,
+            tipo_preventiva: registroAtualizado.tipo_preventiva,
+            data_programada: registroAtualizado.data_programada,
+            data_realizada: registroAtualizado.data_realizada || null,
+            situacao: registroAtualizado.situacao,
+            horario_agendado: registroAtualizado.horario_agendado,
+            observacao: registroAtualizado.observacao || null,
+            updated_at: registroAtualizado.updated_at,
+          }
 
-      if (checkError && checkError.message.includes("does not exist")) {
-        throw new Error("A tabela 'maintenance_records' não existe. Por favor, crie a tabela primeiro.")
-      }
+          const { error } = await supabase
+            .from("maintenance_records")
+            .update(dadosParaAtualizacao)
+            .eq("id", registroSelecionado.id)
 
-      console.log("Tabela encontrada, inserindo dados de exemplo...")
-
-      // Inserir dados de exemplo
-      for (const registro of dadosLocais.slice(0, 5)) {
-        // Formatar as datas corretamente para o formato de data do PostgreSQL
-        const formattedRecord = {
-          frota: registro.frota,
-          descricao_ponto: registro.descricao_ponto,
-          tipo_preventiva: registro.tipo_preventiva,
-          data_programada: registro.data_programada, // Já está no formato YYYY-MM-DD
-          data_realizada: registro.data_realizada, // Já está no formato YYYY-MM-DD ou undefined
-          situacao: registro.situacao,
-          horario_agendado: registro.horario_agendado,
-          observacao: registro.observacao || null,
-          updated_at: new Date().toISOString(),
+          if (error) {
+            throw error
+          }
+        } catch (dbError) {
+          console.warn("Erro no banco, atualizando localmente:", dbError)
         }
-
-        const { error: insertError } = await supabase.from("maintenance_records").insert(formattedRecord)
-
-        if (insertError) {
-          console.warn("Erro ao inserir dado de exemplo:", insertError)
-          // Continuar mesmo se houver erro em um dos registros de exemplo
-        }
       }
+
+      // Atualizar localmente
+      setRegistros((prev) => prev.map((r) => (r.id === registroSelecionado.id ? registroAtualizado : r)))
+
+      setDialogoEditar(false)
+      setRegistroSelecionado(null)
 
       toast({
-        title: "Dados inseridos com sucesso",
-        description: "A tabela foi populada com dados de exemplo.",
+        title: "Sucesso",
+        description: `Registro atualizado ${bdConectado ? "no banco de dados" : "localmente"}!`,
       })
-
-      // Fechar o diálogo de criar tabela
-      setDialogoCriarTabela(false)
-
-      // Atualizar status
-      setStatusInicializacao("success")
-      setMensagemInicializacao("Dados inseridos com sucesso! Sistema pronto para uso.")
-      setBdInicializado(true)
-
-      // Buscar registros
-      const { data } = await supabase.from("maintenance_records").select("*")
-      if (data && data.length > 0) {
-        setRegistros(data)
-      }
-    } catch (err) {
-      console.error("Erro ao popular tabela:", err)
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Erro desconhecido"
+      setErro(mensagem)
       toast({
-        title: "Erro ao popular tabela",
-        description: `Ocorreu um erro: ${err instanceof Error ? err.message : String(err)}`,
+        title: "Erro",
+        description: mensagem,
         variant: "destructive",
       })
-
-      setStatusInicializacao("error")
-      setMensagemInicializacao(
-        `Erro ao popular tabela: ${err instanceof Error ? err.message : String(err)}. Usando dados locais.`,
-      )
     } finally {
-      setCriandoTabela(false)
+      setCarregando(false)
     }
   }
 
-  // Adicionar registro
-  const adicionarRegistro = async () => {
-    if (!bdInicializado) {
-      // Modo offline - adiciona ao estado local
-      const novoId = Math.max(...registros.map((r) => r.id), 0) + 1
-      const registroComId = {
-        id: novoId,
-        ...novoRegistro,
-        updated_at: new Date().toISOString(),
-      }
-      setRegistros([registroComId, ...registros])
-      setDialogoAdicionar(false)
-
-      toast({
-        title: "Registro adicionado (modo offline)",
-        description: "O registro foi adicionado localmente.",
-      })
-
-      // Limpar formulário
-      setNovoRegistro({
-        frota: "",
-        descricao_ponto: "LAVADOR",
-        tipo_preventiva: "lavagem_lubrificacao",
-        data_programada: format(new Date(), "yyyy-MM-dd"),
-        situacao: "PENDENTE",
-        horario_agendado: "08:00",
-        observacao: "",
-      })
-
-      return
-    }
-
+  // Função para alterar status
+  const alterarStatus = async (id: number, novoStatus: "PENDENTE" | "ENCERRADO" | "EM_ANDAMENTO") => {
     try {
-      const supabase = getSupabaseClient()
+      setAtualizandoStatus(id)
 
-      const registroParaAdicionar = {
-        ...novoRegistro,
-        updated_at: new Date().toISOString(),
-      }
-
-      const { data, error } = await supabase.from("maintenance_records").insert([registroParaAdicionar]).select()
-
-      if (error) throw error
-
-      toast({
-        title: "Registro adicionado",
-        description: "O registro de manutenção foi adicionado com sucesso.",
-      })
-
-      setRegistros((prev) => [...(data || []), ...prev])
-      setDialogoAdicionar(false)
-
-      // Limpar formulário
-      setNovoRegistro({
-        frota: "",
-        descricao_ponto: "LAVADOR",
-        tipo_preventiva: "lavagem_lubrificacao",
-        data_programada: format(new Date(), "yyyy-MM-dd"),
-        situacao: "PENDENTE",
-        horario_agendado: "08:00",
-        observacao: "",
-      })
-    } catch (err) {
-      console.error("Erro ao adicionar registro:", err)
-      toast({
-        title: "Erro ao adicionar registro",
-        description: "Ocorreu um erro ao adicionar o registro de manutenção.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Atualizar registro
-  const atualizarRegistro = async (registro: MaintenanceRecord) => {
-    if (!bdInicializado) {
-      // Modo offline - atualiza no estado local
-      setRegistros((prev) =>
-        prev.map((r) => (r.id === registro.id ? { ...registro, updated_at: new Date().toISOString() } : r)),
-      )
-
-      toast({
-        title: "Registro atualizado (modo offline)",
-        description: "O registro foi atualizado localmente.",
-      })
-
-      return
-    }
-
-    try {
-      const supabase = getSupabaseClient()
-
-      const registroParaAtualizar = {
-        ...registro,
-        updated_at: new Date().toISOString(),
-      }
-
-      const { error } = await supabase.from("maintenance_records").update(registroParaAtualizar).eq("id", registro.id)
-
-      if (error) throw error
-
-      setRegistros((prev) =>
-        prev.map((r) => (r.id === registro.id ? { ...registro, updated_at: new Date().toISOString() } : r)),
-      )
-
-      toast({
-        title: "Registro atualizado",
-        description: "O registro de manutenção foi atualizado com sucesso.",
-      })
-    } catch (err) {
-      console.error("Erro ao atualizar registro:", err)
-      toast({
-        title: "Erro ao atualizar registro",
-        description: "Ocorreu um erro ao atualizar o registro de manutenção.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Excluir registro
-  const excluirRegistro = async (id: number) => {
-    if (!bdInicializado) {
-      setRegistros((prev) => prev.filter((registro) => registro.id !== id))
-      toast({
-        title: "Registro excluído (modo offline)",
-        description: "O registro foi removido localmente.",
-      })
-      return
-    }
-
-    try {
-      const supabase = getSupabaseClient()
-
-      const { error } = await supabase.from("maintenance_records").delete().eq("id", id)
-
-      if (error) throw error
-
-      setRegistros((prev) => prev.filter((registro) => registro.id !== id))
-      toast({
-        title: "Registro excluído",
-        description: "O registro de manutenção foi excluído com sucesso.",
-      })
-    } catch (err) {
-      console.error("Erro ao excluir registro:", err)
-      toast({
-        title: "Erro ao excluir registro",
-        description: "Ocorreu um erro ao excluir o registro de manutenção.",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Alterar status do registro
-  const alterarStatusRegistro = async (id: number, novoStatus: "PENDENTE" | "ENCERRADO" | "EM_ANDAMENTO") => {
-    setAtualizandoStatus(id)
-
-    try {
       const registro = registros.find((r) => r.id === id)
-      if (!registro) {
-        throw new Error("Registro não encontrado")
-      }
+      if (!registro) return
 
-      const registroAtualizado: MaintenanceRecord = {
+      const registroAtualizado = {
         ...registro,
         situacao: novoStatus,
         data_realizada: novoStatus === "ENCERRADO" ? format(new Date(), "yyyy-MM-dd") : registro.data_realizada,
         updated_at: new Date().toISOString(),
       }
 
-      await atualizarRegistro(registroAtualizado)
-    } catch (err) {
-      console.error("Erro ao alterar status:", err)
+      if (bdConectado) {
+        // Tentar atualizar no banco de dados
+        try {
+          const supabase = getSupabaseClient()
+          const { error } = await supabase
+            .from("maintenance_records")
+            .update({
+              situacao: novoStatus,
+              data_realizada: registroAtualizado.data_realizada,
+              updated_at: registroAtualizado.updated_at,
+            })
+            .eq("id", id)
+
+          if (error) {
+            throw error
+          }
+        } catch (dbError) {
+          console.warn("Erro no banco, atualizando localmente:", dbError)
+        }
+      }
+
+      // Atualizar localmente
+      setRegistros((prev) => prev.map((r) => (r.id === id ? registroAtualizado : r)))
+
       toast({
-        title: "Erro ao alterar status",
-        description: "Ocorreu um erro ao alterar o status do registro.",
+        title: "Sucesso",
+        description: `Status atualizado ${bdConectado ? "no banco de dados" : "localmente"}!`,
+      })
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Erro desconhecido"
+      toast({
+        title: "Erro",
+        description: mensagem,
         variant: "destructive",
       })
     } finally {
@@ -698,38 +471,65 @@ export function WashingLubricationControl() {
     }
   }
 
-  // Sincronizar com o banco de dados
-  const sincronizarComBancoDados = async () => {
-    if (!bdInicializado) {
+  // Função para excluir registro
+  const excluirRegistro = async (id: number) => {
+    try {
+      setCarregando(true)
+
+      if (bdConectado) {
+        // Tentar excluir do banco de dados
+        try {
+          const supabase = getSupabaseClient()
+          const { error } = await supabase.from("maintenance_records").delete().eq("id", id)
+
+          if (error) {
+            throw error
+          }
+        } catch (dbError) {
+          console.warn("Erro no banco, excluindo localmente:", dbError)
+        }
+      }
+
+      // Excluir localmente
+      setRegistros((prev) => prev.filter((r) => r.id !== id))
+
       toast({
-        title: "Banco de dados não inicializado",
-        description: "Verifique a conexão com o banco de dados primeiro.",
+        title: "Sucesso",
+        description: `Registro excluído ${bdConectado ? "do banco de dados" : "localmente"}!`,
+      })
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Erro desconhecido"
+      toast({
+        title: "Erro",
+        description: mensagem,
         variant: "destructive",
       })
-      return
+    } finally {
+      setCarregando(false)
     }
+  }
 
-    setSincronizando(true)
-
+  // Função para sincronizar com banco
+  const sincronizarBanco = async () => {
     try {
-      const resultado = await buscarRegistros()
+      setSincronizando(true)
+      setErro(null)
 
-      if (resultado) {
-        toast({
-          title: "Sincronização concluída",
-          description: "Os registros foram sincronizados com o banco de dados.",
-        })
-      } else {
-        toast({
-          title: "Nenhum registro encontrado",
-          description: "Não foram encontrados registros no banco de dados.",
-        })
-      }
-    } catch (err) {
-      console.error("Erro ao sincronizar:", err)
+      await carregarRegistrosDoBanco()
+      setBdConectado(true)
+      setStatusConexao("conectado")
+
       toast({
-        title: "Erro ao sincronizar",
-        description: "Ocorreu um erro ao sincronizar com o banco de dados.",
+        title: "Sucesso",
+        description: "Dados sincronizados com o banco de dados!",
+      })
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Erro de sincronização"
+      setStatusConexao("erro")
+      setBdConectado(false)
+      toast({
+        title: "Erro",
+        description: mensagem,
         variant: "destructive",
       })
     } finally {
@@ -737,32 +537,103 @@ export function WashingLubricationControl() {
     }
   }
 
-  // Filtrar registros
-  const registrosFiltrados = registros.filter((registro) => {
-    const correspondeTermoBusca =
-      registro.frota.toLowerCase().includes(termoBusca.toLowerCase()) ||
-      (registro.observacao && registro.observacao.toLowerCase().includes(termoBusca.toLowerCase()))
+  // Função para copiar SQL
+  const copiarSQL = () => {
+    const sqlScript = `-- Script SQL para criar a tabela maintenance_records
+CREATE TABLE IF NOT EXISTS maintenance_records (
+    id SERIAL PRIMARY KEY,
+    frota VARCHAR(50) NOT NULL,
+    local VARCHAR(100) NOT NULL,
+    tipo_preventiva VARCHAR(100) NOT NULL,
+    data_programada DATE NOT NULL,
+    data_realizada DATE,
+    situacao VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' CHECK (situacao IN ('PENDENTE', 'ENCERRADO', 'EM_ANDAMENTO')),
+    horario_agendado TIME NOT NULL,
+    observacao TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
-    const correspondeTipo = filtroTipo === "todos" || registro.tipo_preventiva === filtroTipo
-    const correspondeSituacao = filtroSituacao === "todos" || registro.situacao === filtroSituacao
+-- Criar índices para melhor performance
+CREATE INDEX IF NOT EXISTS idx_maintenance_records_frota ON maintenance_records(frota);
+CREATE INDEX IF NOT EXISTS idx_maintenance_records_situacao ON maintenance_records(situacao);
+CREATE INDEX IF NOT EXISTS idx_maintenance_records_data_programada ON maintenance_records(data_programada);
+CREATE INDEX IF NOT EXISTS idx_maintenance_records_local ON maintenance_records(local);
 
-    // Filtro de período
-    const dataProgramada = new Date(registro.data_programada)
-    const correspondePeriodo =
-      (!filtroPeriodo.de || dataProgramada >= filtroPeriodo.de) &&
-      (!filtroPeriodo.ate || dataProgramada <= filtroPeriodo.ate)
+-- Inserir dados de exemplo
+INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada, situacao, horario_agendado, observacao) VALUES
+('6597', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-26', 'PENDENTE', '04:00', 'TROCA DE ÓLEO'),
+('8805', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-27', 'PENDENTE', '08:00', 'EM VIAGEM'),
+('4597', 'LUBRIFICADOR', 'lubrificacao', '2025-01-28', 'EM_ANDAMENTO', '14:30', 'Aguardando peças'),
+('6602', 'MECANICO', 'troca_oleo', '2025-01-25', 'ENCERRADO', '02:00', 'Concluído com sucesso');`
 
-    return correspondeTermoBusca && correspondeTipo && correspondeSituacao && correspondePeriodo
-  })
+    navigator.clipboard.writeText(sqlScript)
+    toast({
+      title: "SQL Copiado",
+      description: "Script SQL copiado para a área de transferência!",
+    })
+  }
 
-  // Exportar para PDF
-  const exportarPDF = async () => {
-    if (!relatorioRef.current) return
-
-    setExportando(true)
-
+  // Função para exportar Excel
+  const exportarExcel = () => {
     try {
-      const canvas = await html2canvas(relatorioRef.current, {
+      setExportando(true)
+
+      const dadosExport = registrosFiltrados.map((registro) => ({
+        Frota: registro.frota,
+        Local: registro.local,
+        "Tipo Preventiva": obterLabelTipo(registro.tipo_preventiva),
+        "Data Programada": format(new Date(registro.data_programada), "dd/MM/yyyy"),
+        "Data Realizada": registro.data_realizada ? format(new Date(registro.data_realizada), "dd/MM/yyyy") : "",
+        Situação: registro.situacao,
+        "Horário Agendado": registro.horario_agendado,
+        Observação: registro.observacao || "",
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(dadosExport)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Lavagem e Lubrificação")
+
+      // Ajustar largura das colunas
+      const colWidths = [
+        { wch: 10 }, // Frota
+        { wch: 15 }, // Local
+        { wch: 20 }, // Tipo Preventiva
+        { wch: 15 }, // Data Programada
+        { wch: 15 }, // Data Realizada
+        { wch: 12 }, // Situação
+        { wch: 15 }, // Horário Agendado
+        { wch: 30 }, // Observação
+      ]
+      worksheet["!cols"] = colWidths
+
+      XLSX.writeFile(workbook, "controle-lavagem-lubrificacao.xlsx")
+
+      toast({
+        title: "Sucesso",
+        description: "Arquivo Excel exportado com sucesso!",
+      })
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao exportar arquivo Excel",
+        variant: "destructive",
+      })
+    } finally {
+      setExportando(false)
+    }
+  }
+
+  // Função para exportar PDF
+  const exportarPDF = async () => {
+    try {
+      setExportando(true)
+
+      if (!tabelaRef.current) {
+        throw new Error("Tabela não encontrada")
+      }
+
+      const canvas = await html2canvas(tabelaRef.current, {
         scale: 2,
         logging: false,
         useCORS: true,
@@ -778,20 +649,17 @@ export function WashingLubricationControl() {
       const imgWidth = 280
       const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-      // Adicionar imagem do relatório
       pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight)
-
       pdf.save("controle-lavagem-lubrificacao.pdf")
 
       toast({
-        title: "PDF exportado",
-        description: "O relatório foi exportado com sucesso.",
+        title: "Sucesso",
+        description: "Arquivo PDF exportado com sucesso!",
       })
-    } catch (err) {
-      console.error("Erro ao exportar PDF:", err)
+    } catch (error) {
       toast({
-        title: "Erro ao exportar",
-        description: "Ocorreu um erro ao exportar o relatório para PDF.",
+        title: "Erro",
+        description: "Erro ao exportar arquivo PDF",
         variant: "destructive",
       })
     } finally {
@@ -799,322 +667,187 @@ export function WashingLubricationControl() {
     }
   }
 
-  // Exportar para Excel
-  const exportarExcel = () => {
-    setExportando(true)
-
-    try {
-      const worksheet = XLSX.utils.json_to_sheet(
-        registrosFiltrados.map((registro) => ({
-          "Frota Veículo": registro.frota,
-          "DESCRIÇÃO PONTO": registro.descricao_ponto,
-          "TIPO PREVENTIVA": obterLabelTipoPreventiva(registro.tipo_preventiva),
-          "DATA PROGRAMADA": format(new Date(registro.data_programada), "dd/MM/yyyy"),
-          "DATA REALIZADA": registro.data_realizada ? format(new Date(registro.data_realizada), "dd/MM/yyyy") : "",
-          SITUAÇÃO: registro.situacao,
-          "HORÁRIO AGENDADO": registro.horario_agendado,
-          Observação: registro.observacao || "",
-          "Última Atualização": registro.updated_at ? format(new Date(registro.updated_at), "dd/MM/yyyy HH:mm") : "",
-        })),
-      )
-
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Controle Lav Lubrificação")
-
-      // Ajustar largura das colunas
-      const colWidths = [
-        { wch: 12 }, // Frota Veículo
-        { wch: 15 }, // DESCRIÇÃO PONTO
-        { wch: 20 }, // TIPO PREVENTIVA
-        { wch: 15 }, // DATA PROGRAMADA
-        { wch: 15 }, // DATA REALIZADA
-        { wch: 12 }, // SITUAÇÃO
-        { wch: 15 }, // HORÁRIO AGENDADO
-        { wch: 40 }, // Observação
-        { wch: 20 }, // Última Atualização
-      ]
-
-      worksheet["!cols"] = colWidths
-
-      // Converter para array buffer
-      const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" })
-
-      // Criar Blob a partir do buffer
-      const blob = new Blob([excelBuffer], {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      })
-
-      // Criar URL para o blob
-      const url = URL.createObjectURL(blob)
-
-      // Criar elemento de link para download
-      const link = document.createElement("a")
-      link.href = url
-      link.download = "controle-lavagem-lubrificacao.xlsx"
-
-      // Adicionar à página, clicar e remover
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-
-      // Liberar a URL do objeto
-      URL.revokeObjectURL(url)
-
-      toast({
-        title: "Excel exportado",
-        description: "O relatório foi exportado com sucesso.",
-      })
-    } catch (err) {
-      console.error("Erro ao exportar Excel:", err)
-      toast({
-        title: "Erro ao exportar",
-        description: `Ocorreu um erro ao exportar o relatório para Excel: ${err instanceof Error ? err.message : String(err)}`,
-        variant: "destructive",
-      })
-    } finally {
-      setExportando(false)
-    }
-  }
-
-  // Função auxiliar para obter o label do tipo preventiva
-  const obterLabelTipoPreventiva = (valor: string) => {
+  // Função auxiliar para obter label do tipo
+  const obterLabelTipo = (valor: string) => {
     const tipo = tiposPreventiva.find((t) => t.value === valor)
     return tipo ? tipo.label : valor
   }
 
-  // Renderização da célula de situação com cores
-  const renderizarSituacao = (situacao: string) => {
+  // Função auxiliar para obter label do local
+  const obterLabelLocal = (valor: string) => {
+    const local = locais.find((l) => l.value === valor)
+    return local ? local.label : valor
+  }
+
+  // Filtrar registros
+  const registrosFiltrados = registros.filter((registro) => {
+    const correspondeTermoBusca =
+      registro.frota.toLowerCase().includes(termoBusca.toLowerCase()) ||
+      registro.local.toLowerCase().includes(termoBusca.toLowerCase()) ||
+      (registro.observacao && registro.observacao.toLowerCase().includes(termoBusca.toLowerCase()))
+
+    const correspondeTipo = filtroTipo === "todos" || registro.tipo_preventiva === filtroTipo
+    const correspondeSituacao = filtroSituacao === "todos" || registro.situacao === filtroSituacao
+    const correspondeLocal = filtroLocal === "todos" || registro.local === filtroLocal
+
+    const correspondeData =
+      !dataSelecionada ||
+      format(new Date(registro.data_programada), "yyyy-MM-dd") === format(dataSelecionada, "yyyy-MM-dd")
+
+    return correspondeTermoBusca && correspondeTipo && correspondeSituacao && correspondeLocal && correspondeData
+  })
+
+  // Renderizar status com cores
+  const renderizarStatus = (situacao: string) => {
     switch (situacao) {
       case "PENDENTE":
-        return <div className="bg-red-600 text-white text-center py-1 px-2 rounded-sm font-medium">PENDENTE</div>
+        return (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-red-50 to-red-100 text-red-700 border border-red-200 shadow-sm">
+            <Clock className="w-3.5 h-3.5 mr-1.5 text-red-600" />
+            PENDENTE
+          </span>
+        )
       case "ENCERRADO":
-        return <div className="bg-green-600 text-white text-center py-1 px-2 rounded-sm font-medium">ENCERRADO</div>
+        return (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-50 to-green-100 text-emerald-700 border border-emerald-200 shadow-sm">
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+            ENCERRADO
+          </span>
+        )
       case "EM_ANDAMENTO":
-        return <div className="bg-yellow-500 text-white text-center py-1 px-2 rounded-sm font-medium">EM ANDAMENTO</div>
+        return (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-amber-50 to-yellow-100 text-amber-700 border border-amber-200 shadow-sm">
+            <PlayCircle className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
+            EM ANDAMENTO
+          </span>
+        )
       default:
-        return situacao
+        return (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 border border-gray-200 shadow-sm">
+            {situacao}
+          </span>
+        )
     }
   }
 
-  // Renderização da célula de observação com cores
+  // Renderizar observação com cores
   const renderizarObservacao = (observacao?: string) => {
     if (!observacao) return ""
 
     if (observacao.includes("TROCA DE ÓLEO")) {
-      return <div className="bg-green-600 text-white text-center py-1 px-2 rounded-sm">{observacao}</div>
+      return <span className="text-green-600 font-medium">{observacao}</span>
     } else if (observacao.includes("EM VIAGEM")) {
-      return <div className="bg-red-600 text-white text-center py-1 px-2 rounded-sm">{observacao}</div>
+      return <span className="text-red-600 font-medium">{observacao}</span>
     } else if (observacao.includes("OFICINA") || observacao.includes("Gabelim")) {
-      return <div className="bg-red-600 text-white text-center py-1 px-2 rounded-sm">{observacao}</div>
+      return <span className="text-red-600 font-medium">{observacao}</span>
     }
 
-    return observacao
+    return <span className="text-red-600">{observacao}</span>
   }
 
-  // Funções para preparar dados para os gráficos
-  const prepararDadosTipoPreventiva = () => {
-    const dadosPorTipo = tiposPreventiva
-      .map((tipo) => {
-        const quantidade = registrosFiltrados.filter((r) => r.tipo_preventiva === tipo.value).length
-        return {
-          name: tipo.label,
-          value: quantidade,
-          color:
-            tipo.value === "lavagem_lubrificacao"
-              ? "#22c55e"
-              : tipo.value === "lavagem"
-                ? "#3b82f6"
-                : tipo.value === "lubrificacao"
-                  ? "#eab308"
-                  : tipo.value === "troca_oleo"
-                    ? "#ef4444"
-                    : "#8b5cf6",
-        }
-      })
-      .filter((item) => item.value > 0)
-
-    return dadosPorTipo
-  }
-
-  const prepararDadosSituacao = () => {
-    const pendentes = registrosFiltrados.filter((r) => r.situacao === "PENDENTE").length
-    const emAndamento = registrosFiltrados.filter((r) => r.situacao === "EM_ANDAMENTO").length
-    const encerrados = registrosFiltrados.filter((r) => r.situacao === "ENCERRADO").length
-
-    return [
-      { name: "Pendentes", value: pendentes, color: "#ef4444" },
-      { name: "Em Andamento", value: emAndamento, color: "#eab308" },
-      { name: "Encerrados", value: encerrados, color: "#22c55e" },
-    ].filter((item) => item.value > 0)
-  }
-
-  const prepararDadosPorData = () => {
-    // Agrupar registros por data
-    const registrosPorData = registrosFiltrados.reduce((acc, registro) => {
-      const data = format(new Date(registro.data_programada), "dd/MM/yyyy")
-      if (!acc[data]) {
-        acc[data] = {
-          data,
-          pendentes: 0,
-          emAndamento: 0,
-          encerrados: 0,
-          total: 0,
-        }
-      }
-
-      if (registro.situacao === "PENDENTE") acc[data].pendentes++
-      else if (registro.situacao === "EM_ANDAMENTO") acc[data].emAndamento++
-      else if (registro.situacao === "ENCERRADO") acc[data].encerrados++
-
-      acc[data].total++
-
-      return acc
-    }, {})
-
-    // Converter para array e ordenar por data
-    return Object.values(registrosPorData).sort((a: any, b: any) => {
-      const dataA = new Date(a.data.split("/").reverse().join("-"))
-      const dataB = new Date(b.data.split("/").reverse().join("-"))
-      return dataA.getTime() - dataB.getTime()
-    })
-  }
-
-  const prepararDadosPorFrota = () => {
-    // Agrupar registros por frota
-    const registrosPorFrota = registrosFiltrados.reduce((acc, registro) => {
-      if (!acc[registro.frota]) {
-        acc[registro.frota] = {
-          frota: registro.frota,
-          pendentes: 0,
-          emAndamento: 0,
-          encerrados: 0,
-          total: 0,
-        }
-      }
-
-      if (registro.situacao === "PENDENTE") acc[registro.frota].pendentes++
-      else if (registro.situacao === "EM_ANDAMENTO") acc[registro.frota].emAndamento++
-      else if (registro.situacao === "ENCERRADO") acc[registro.frota].encerrados++
-
-      acc[registro.frota].total++
-
-      return acc
-    }, {})
-
-    // Converter para array e ordenar por total
-    return Object.values(registrosPorFrota)
-      .sort((a: any, b: any) => b.total - a.total)
-      .slice(0, 10) // Limitar aos 10 maiores
-  }
-
-  // Componente para renderizar o tooltip personalizado
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-slate-800 border border-slate-700 p-3 rounded-md shadow-lg">
-          <p className="text-slate-300 font-medium">{`${label}`}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={`item-${index}`} style={{ color: entry.color || entry.fill || entry.stroke }}>
-              {`${entry.name || entry.dataKey}: ${entry.value}`}
-            </p>
-          ))}
-        </div>
-      )
+  // Renderizar indicador de status de conexão
+  const renderizarStatusConexao = () => {
+    switch (statusConexao) {
+      case "conectando":
+        return (
+          <div className="flex items-center gap-2 text-yellow-600">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Conectando...</span>
+          </div>
+        )
+      case "conectado":
+        return (
+          <div className="flex items-center gap-2 text-green-600">
+            <Wifi className="h-4 w-4" />
+            <span className="text-sm">Online</span>
+          </div>
+        )
+      case "erro":
+        return (
+          <div className="flex items-center gap-2 text-red-600">
+            <WifiOff className="h-4 w-4" />
+            <span className="text-sm">Tabela não encontrada</span>
+          </div>
+        )
+      case "offline":
+        return (
+          <div className="flex items-center gap-2 text-gray-600">
+            <WifiOff className="h-4 w-4" />
+            <span className="text-sm">Offline</span>
+          </div>
+        )
+      default:
+        return null
     }
-
-    return null
   }
 
-  // Componente para renderizar o setor ativo no gráfico de pizza
-  const renderActiveShape = (props: any) => {
-    const RADIAN = Math.PI / 180
-    const { cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle, fill, payload, percent, value } = props
-    const sin = Math.sin(-RADIAN * midAngle)
-    const cos = Math.cos(-RADIAN * midAngle)
-    const sx = cx + (outerRadius + 10) * cos
-    const sy = cy + (outerRadius + 10) * sin
-    const mx = cx + (outerRadius + 30) * cos
-    const my = cy + (outerRadius + 30) * sin
-    const ex = mx + (cos >= 0 ? 1 : -1) * 22
-    const ey = my
-    const textAnchor = cos >= 0 ? "start" : "end"
+  // Dados para gráficos
+  const dadosGraficoSituacao = [
+    {
+      name: "Pendentes",
+      value: registrosFiltrados.filter((r) => r.situacao === "PENDENTE").length,
+      color: "#dc2626", // Vermelho mais vibrante
+    },
+    {
+      name: "Encerrados",
+      value: registrosFiltrados.filter((r) => r.situacao === "ENCERRADO").length,
+      color: "#059669", // Verde esmeralda
+    },
+    {
+      name: "Em Andamento",
+      value: registrosFiltrados.filter((r) => r.situacao === "EM_ANDAMENTO").length,
+      color: "#d97706", // Âmbar mais forte
+    },
+  ]
 
-    return (
-      <g>
-        <text x={cx} y={cy} dy={8} textAnchor="middle" fill={fill} className="text-sm font-medium">
-          {payload.name}
-        </text>
-        <Sector
-          cx={cx}
-          cy={cy}
-          innerRadius={innerRadius}
-          outerRadius={outerRadius}
-          startAngle={startAngle}
-          endAngle={endAngle}
-          fill={fill}
-        />
-        <Sector
-          cx={cx}
-          cy={cy}
-          startAngle={startAngle}
-          endAngle={endAngle}
-          innerRadius={outerRadius + 6}
-          outerRadius={outerRadius + 10}
-          fill={fill}
-        />
-        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" />
-        <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
-        <text
-          x={ex + (cos >= 0 ? 1 : -1) * 12}
-          y={ey}
-          textAnchor={textAnchor}
-          fill="#999"
-          className="text-xs"
-        >{`${value} registros`}</text>
-        <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} dy={18} textAnchor={textAnchor} fill="#999" className="text-xs">
-          {`(${(percent * 100).toFixed(2)}%)`}
-        </text>
-      </g>
-    )
-  }
+  const dadosGraficoTipo = tiposPreventiva.map((tipo) => ({
+    name: tipo.label,
+    value: registrosFiltrados.filter((r) => r.tipo_preventiva === tipo.value).length,
+  }))
 
-  // Renderização
   return (
     <div className="space-y-6">
       <Card className="border-0 shadow-lg overflow-hidden">
         <CardHeader className="bg-[#1e2a38] text-white p-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <img
                 src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-w5r6EZIgd51nAwt9Zn5bLhga0cn9hX.png"
                 alt="Branco Peres Logo"
-                className="h-16 w-16 object-contain drop-shadow-lg"
+                className="h-12 w-12 lg:h-16 lg:w-16 object-contain drop-shadow-lg"
                 style={{ filter: "drop-shadow(0 0 8px rgba(255,255,255,0.3))" }}
               />
               <div>
-                <CardTitle className="text-3xl font-bold text-white flex items-center">
-                  Controle de Lav / Lubrificação Logística
+                <CardTitle className="text-xl lg:text-3xl font-bold text-white">
+                  Controle de Lavagem e Lubrificação Logística
                 </CardTitle>
-                <CardDescription className="text-gray-300 text-lg">
+                <CardDescription className="text-gray-300 text-sm lg:text-lg">
                   Branco Peres Agro S/A - {format(new Date(), "dd/MM/yyyy")}
                 </CardDescription>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {!bdInicializado ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {renderizarStatusConexao()}
+
+              {statusConexao !== "conectado" ? (
                 <Button
                   variant="outline"
                   className="bg-white text-[#1e2a38] hover:bg-gray-100"
-                  onClick={() => setDialogoInicializarBd(true)}
+                  onClick={tentarConectarBanco}
+                  disabled={sincronizando}
                 >
-                  <Database className="mr-2 h-4 w-4" />
-                  Verificar BD
+                  {sincronizando ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Database className="mr-2 h-4 w-4" />
+                  )}
+                  Conectar BD
                 </Button>
               ) : (
                 <Button
                   variant="outline"
                   className="bg-white text-[#1e2a38] hover:bg-gray-100"
-                  onClick={sincronizarComBancoDados}
+                  onClick={sincronizarBanco}
                   disabled={sincronizando}
                 >
                   {sincronizando ? (
@@ -1134,176 +867,33 @@ export function WashingLubricationControl() {
           {erro && (
             <Alert variant="destructive" className="m-4">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Erro</AlertTitle>
+              <AlertTitle>Aviso</AlertTitle>
               <AlertDescription>{erro}</AlertDescription>
             </Alert>
           )}
 
-          {!bdInicializado && (
+          {!bdConectado && (
             <Alert className="m-4 bg-blue-50 border-blue-200">
               <AlertCircle className="h-4 w-4 text-blue-600" />
               <AlertTitle className="text-blue-800">Modo Offline</AlertTitle>
               <AlertDescription className="text-blue-700">
-                Sistema operando com dados locais. Clique em "Verificar BD" para conectar ao banco de dados.
+                Sistema funcionando com dados locais. Para conectar ao banco de dados, execute o script SQL fornecido.
               </AlertDescription>
             </Alert>
           )}
 
-          <div className="p-4 bg-gray-100 border-b">
-            <div className="flex flex-col md:flex-row gap-4 items-center">
-              <div className="flex-1 relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                <Input
-                  type="search"
-                  placeholder="Buscar por frota ou observações..."
-                  className="pl-8"
-                  value={termoBusca}
-                  onChange={(e) => setTermoBusca(e.target.value)}
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-9">
-                      <Filter className="mr-2 h-4 w-4" />
-                      Filtros
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80">
-                    <div className="space-y-4">
-                      <h4 className="font-medium">Filtrar Registros</h4>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="filtroTipo">Tipo Preventiva</Label>
-                        <Select value={filtroTipo} onValueChange={setFiltroTipo}>
-                          <SelectTrigger id="filtroTipo">
-                            <SelectValue placeholder="Selecione o tipo" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="todos">Todos os tipos</SelectItem>
-                            {tiposPreventiva.map((tipo) => (
-                              <SelectItem key={tipo.value} value={tipo.value}>
-                                {tipo.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="filtroSituacao">Situação</Label>
-                        <Select value={filtroSituacao} onValueChange={setFiltroSituacao}>
-                          <SelectTrigger id="filtroSituacao">
-                            <SelectValue placeholder="Selecione a situação" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="todos">Todas as situações</SelectItem>
-                            <SelectItem value="PENDENTE">PENDENTE</SelectItem>
-                            <SelectItem value="ENCERRADO">ENCERRADO</SelectItem>
-                            <SelectItem value="EM_ANDAMENTO">EM ANDAMENTO</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Período</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" className="w-full justify-start text-left font-normal">
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {filtroPeriodo.de ? format(filtroPeriodo.de, "dd/MM/yyyy") : "Data inicial"}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <Calendar
-                                mode="single"
-                                selected={filtroPeriodo.de}
-                                onSelect={(date) => setFiltroPeriodo({ ...filtroPeriodo, de: date })}
-                                initialFocus
-                                locale={ptBR}
-                              />
-                            </PopoverContent>
-                          </Popover>
-
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button variant="outline" className="w-full justify-start text-left font-normal">
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {filtroPeriodo.ate ? format(filtroPeriodo.ate, "dd/MM/yyyy") : "Data final"}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                              <Calendar
-                                mode="single"
-                                selected={filtroPeriodo.ate}
-                                onSelect={(date) => setFiltroPeriodo({ ...filtroPeriodo, ate: date })}
-                                initialFocus
-                                locale={ptBR}
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setFiltroTipo("todos")
-                            setFiltroSituacao("todos")
-                            setFiltroPeriodo({ de: undefined, ate: undefined })
-                          }}
-                        >
-                          Limpar
-                        </Button>
-                        <Button size="sm">Aplicar Filtros</Button>
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-
-                <Button variant="outline" size="sm" className="h-9" onClick={() => setDialogoAdicionar(true)}>
-                  <SlidersHorizontal className="mr-2 h-4 w-4" />
-                  Novo Registro
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9"
-                  onClick={exportarExcel}
-                  disabled={exportando || registrosFiltrados.length === 0}
-                >
-                  <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  Excel
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9"
-                  onClick={exportarPDF}
-                  disabled={exportando || registrosFiltrados.length === 0}
-                >
-                  <FileText className="mr-2 h-4 w-4" />
-                  PDF
-                </Button>
-              </div>
-            </div>
-          </div>
-
           <Tabs defaultValue="tabela" className="w-full">
             <div className="px-4 pt-2 border-b">
               <TabsList>
-                <TabsTrigger value="tabela" className="data-[state=active]:bg-[#1e2a38] data-[state=active]:text-white">
+                <TabsTrigger
+                  value="tabela"
+                  className="text-white data-[state=active]:bg-[#1e2a38] data-[state=active]:text-white"
+                >
                   Tabela
                 </TabsTrigger>
                 <TabsTrigger
                   value="dashboard"
-                  className="data-[state=active]:bg-[#1e2a38] data-[state=active]:text-white"
+                  className="text-white data-[state=active]:bg-[#1e2a38] data-[state=active]:text-white"
                 >
                   Dashboard
                 </TabsTrigger>
@@ -1311,125 +901,265 @@ export function WashingLubricationControl() {
             </div>
 
             <TabsContent value="tabela" className="p-0">
-              <div ref={relatorioRef} className="overflow-x-auto">
+              {/* Filtros e Controles */}
+              <div className="p-4 bg-gray-50 border-b">
+                <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+                  {/* Busca */}
+                  <div className="flex-1 relative max-w-md">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                    <Input
+                      type="search"
+                      placeholder="Buscar por frota, local ou observação..."
+                      className="pl-8"
+                      value={termoBusca}
+                      onChange={(e) => setTermoBusca(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Filtros */}
+                  <div className="flex flex-wrap gap-2">
+                    {/* Filtro Data */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-9">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {dataSelecionada ? format(dataSelecionada, "dd/MM/yyyy") : "Data"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={dataSelecionada}
+                          onSelect={setDataSelecionada}
+                          initialFocus
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Filtro Local */}
+                    <Select value={filtroLocal} onValueChange={setFiltroLocal}>
+                      <SelectTrigger className="w-[140px] h-9">
+                        <SelectValue placeholder="Local" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos os locais</SelectItem>
+                        {locais.map((local) => (
+                          <SelectItem key={local.value} value={local.value}>
+                            {local.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Filtro Tipo */}
+                    <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+                      <SelectTrigger className="w-[160px] h-9">
+                        <SelectValue placeholder="Tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos os tipos</SelectItem>
+                        {tiposPreventiva.map((tipo) => (
+                          <SelectItem key={tipo.value} value={tipo.value}>
+                            {tipo.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Filtro Situação */}
+                    <Select value={filtroSituacao} onValueChange={setFiltroSituacao}>
+                      <SelectTrigger className="w-[140px] h-9">
+                        <SelectValue placeholder="Situação" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todas</SelectItem>
+                        <SelectItem value="PENDENTE">Pendente</SelectItem>
+                        <SelectItem value="EM_ANDAMENTO">Em Andamento</SelectItem>
+                        <SelectItem value="ENCERRADO">Encerrado</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {/* Botão Limpar Filtros */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={() => {
+                        setTermoBusca("")
+                        setFiltroTipo("todos")
+                        setFiltroSituacao("todos")
+                        setFiltroLocal("todos")
+                        setDataSelecionada(undefined)
+                      }}
+                    >
+                      <Filter className="mr-2 h-4 w-4" />
+                      Limpar
+                    </Button>
+                  </div>
+
+                  {/* Ações */}
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" className="h-9" onClick={() => setDialogoAdicionar(true)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Adicionar
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={exportarExcel}
+                      disabled={exportando || registrosFiltrados.length === 0}
+                    >
+                      <FileSpreadsheet className="mr-2 h-4 w-4" />
+                      Excel
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9"
+                      onClick={exportarPDF}
+                      disabled={exportando || registrosFiltrados.length === 0}
+                    >
+                      <FileText className="mr-2 h-4 w-4" />
+                      PDF
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabela */}
+              <div ref={tabelaRef} className="overflow-x-auto">
                 <div className="bg-[#1e2a38] p-4 flex items-center gap-4">
                   <img
                     src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-w5r6EZIgd51nAwt9Zn5bLhga0cn9hX.png"
                     alt="Branco Peres Logo"
-                    className="h-14 w-14 object-contain"
+                    className="h-12 w-12 object-contain"
                   />
                   <div>
-                    <h2 className="text-xl font-bold text-white">Controle de Lav / Lubrificação Logística</h2>
-                    <p className="text-gray-300">Branco Peres Agro S/A - {format(new Date(), "dd/MM/yyyy")}</p>
+                    <h2 className="text-lg font-bold text-white">Controle de Lavagem e Lubrificação Logística</h2>
+                    <p className="text-gray-300 text-sm">Branco Peres Agro S/A - {format(new Date(), "dd/MM/yyyy")}</p>
                   </div>
                 </div>
-                <table className="w-full border-collapse">
+
+                <table className="w-full border-collapse min-w-[800px]">
                   <thead>
                     <tr className="bg-[#2c3e50] text-white">
-                      <th className="border border-gray-600 px-3 py-2 text-left">Frota Veículo</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left">DESCRIÇÃO PONTO</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left">TIPO PREVENTIVA</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left">DATA PROGRAMADA</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left">DATA REALIZADA</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left">SITUAÇÃO</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left">HORÁRIO AGENDADO</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left">Observação</th>
-                      <th className="border border-gray-600 px-3 py-2 text-center">Ações</th>
+                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">Frota</th>
+                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">Local</th>
+                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">
+                        Tipo Preventiva
+                      </th>
+                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">
+                        Data Programada
+                      </th>
+                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">Data Realizada</th>
+                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">Situação</th>
+                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">
+                        Horário Agendado
+                      </th>
+                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">Observação</th>
+                      <th className="border border-gray-600 px-3 py-2 text-center text-sm font-medium">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {carregando ? (
                       <tr>
-                        <td colSpan={9} className="text-center py-4 border border-gray-300 bg-white">
+                        <td colSpan={9} className="text-center py-8 border border-gray-300 bg-white">
                           <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
                           Carregando...
                         </td>
                       </tr>
                     ) : registrosFiltrados.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="text-center py-4 border border-gray-300 bg-white">
+                        <td colSpan={9} className="text-center py-8 border border-gray-300 bg-white">
                           Nenhum registro encontrado
                         </td>
                       </tr>
                     ) : (
                       registrosFiltrados.map((registro, index) => (
                         <tr key={registro.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                          <td className="border border-gray-300 px-3 py-2 text-gray-900">{registro.frota}</td>
-                          <td className="border border-gray-300 px-3 py-2 text-gray-900">{registro.descricao_ponto}</td>
-                          <td className="border border-gray-300 px-3 py-2 text-gray-900">
-                            {obterLabelTipoPreventiva(registro.tipo_preventiva)}
+                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900 font-medium">
+                            {registro.frota}
                           </td>
-                          <td className="border border-gray-300 px-3 py-2 text-gray-900">
+                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                            {obterLabelLocal(registro.local)}
+                          </td>
+                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                            {obterLabelTipo(registro.tipo_preventiva)}
+                          </td>
+                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
                             {format(new Date(registro.data_programada), "dd/MM/yyyy")}
                           </td>
-                          <td className="border border-gray-300 px-3 py-2 text-gray-900">
+                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
                             {registro.data_realizada ? format(new Date(registro.data_realizada), "dd/MM/yyyy") : ""}
                           </td>
-                          <td className="border border-gray-300 px-3 py-2">
-                            <div className="flex items-center justify-between">
-                              {renderizarSituacao(registro.situacao)}
+                          <td className="border border-gray-300 px-3 py-2">{renderizarStatus(registro.situacao)}</td>
+                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                            {registro.horario_agendado}
+                          </td>
+                          <td className="border border-gray-300 px-3 py-2 text-sm">
+                            {renderizarObservacao(registro.observacao)}
+                          </td>
+                          <td className="border border-gray-300 px-3 py-2 text-center">
+                            <div className="flex items-center justify-center gap-1">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-6 w-6 ml-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-gray-700 hover:bg-gray-100 border border-gray-300"
+                                  >
                                     {atualizandoStatus === registro.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      <Loader2 className="h-4 w-4 animate-spin text-gray-700" />
                                     ) : (
-                                      <MoreHorizontal className="h-4 w-4" />
+                                      <MoreHorizontal className="h-4 w-4 text-gray-700" />
                                     )}
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
-                                    onClick={() => alterarStatusRegistro(registro.id, "PENDENTE")}
+                                    onClick={() => alterarStatus(registro.id, "PENDENTE")}
                                     disabled={registro.situacao === "PENDENTE" || atualizandoStatus === registro.id}
-                                    className="text-red-600"
                                   >
                                     <PauseCircle className="mr-2 h-4 w-4" />
                                     Pendente
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() => alterarStatusRegistro(registro.id, "EM_ANDAMENTO")}
+                                    onClick={() => alterarStatus(registro.id, "EM_ANDAMENTO")}
                                     disabled={registro.situacao === "EM_ANDAMENTO" || atualizandoStatus === registro.id}
-                                    className="text-yellow-600"
                                   >
                                     <PlayCircle className="mr-2 h-4 w-4" />
                                     Em Andamento
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() => alterarStatusRegistro(registro.id, "ENCERRADO")}
+                                    onClick={() => alterarStatus(registro.id, "ENCERRADO")}
                                     disabled={registro.situacao === "ENCERRADO" || atualizandoStatus === registro.id}
-                                    className="text-green-600"
                                   >
                                     <CheckCircle2 className="mr-2 h-4 w-4" />
                                     Encerrado
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
-                            </div>
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 text-gray-900">
-                            {registro.horario_agendado}
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2">
-                            {renderizarObservacao(registro.observacao)}
-                          </td>
-                          <td className="border border-gray-300 px-3 py-2 text-center">
-                            <div className="flex items-center justify-center gap-1">
+
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-gray-700 hover:bg-gray-200"
+                                className="h-8 w-8 text-blue-600 hover:bg-blue-50 border border-gray-300"
                                 onClick={() => {
                                   setRegistroSelecionado(registro)
-                                  setDialogoEditarRegistro(true)
+                                  setDialogoEditar(true)
                                 }}
                               >
-                                <Clock className="h-4 w-4" />
+                                <SlidersHorizontal className="h-4 w-4" />
                               </Button>
+
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-gray-700 hover:bg-gray-200"
+                                className="h-8 w-8 text-red-600 hover:bg-red-50 border border-gray-300"
                                 onClick={() => excluirRegistro(registro.id)}
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -1445,275 +1175,93 @@ export function WashingLubricationControl() {
             </TabsContent>
 
             <TabsContent value="dashboard" className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <Card>
-                  <CardHeader className="pb-2 bg-[#1e2a38] text-white">
-                    <CardTitle className="text-lg">Total de Registros</CardTitle>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Total de Registros</CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-4">
-                    <div className="text-3xl font-bold text-yellow-500">{registrosFiltrados.length}</div>
-                    <p className="text-sm text-gray-500">Registros encontrados</p>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{registrosFiltrados.length}</div>
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader className="pb-2 bg-[#1e2a38] text-white">
-                    <CardTitle className="text-lg">Pendentes</CardTitle>
+                <Card className="border-l-4 border-l-red-500 shadow-md hover:shadow-lg transition-shadow">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-700">Pendentes</CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-4">
-                    <div className="text-3xl font-bold text-red-600">
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">
                       {registrosFiltrados.filter((r) => r.situacao === "PENDENTE").length}
                     </div>
-                    <p className="text-sm text-gray-500">Registros pendentes</p>
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader className="pb-2 bg-[#1e2a38] text-white">
-                    <CardTitle className="text-lg">Concluídos</CardTitle>
+                <Card className="border-l-4 border-l-amber-500 shadow-md hover:shadow-lg transition-shadow">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-700">Em Andamento</CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-4">
-                    <div className="text-3xl font-bold text-green-600">
+                  <CardContent>
+                    <div className="text-2xl font-bold text-amber-600">
+                      {registrosFiltrados.filter((r) => r.situacao === "EM_ANDAMENTO").length}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-emerald-500 shadow-md hover:shadow-lg transition-shadow">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-700">Concluídos</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-emerald-600">
                       {registrosFiltrados.filter((r) => r.situacao === "ENCERRADO").length}
-                    </div>
-                    <p className="text-sm text-gray-500">Registros concluídos</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                {/* Gráfico de Pizza - Distribuição por Tipo */}
-                <Card>
-                  <CardHeader className="bg-[#1e2a38] text-white">
-                    <CardTitle className="text-lg">Distribuição por Tipo de Preventiva</CardTitle>
-                    <CardDescription className="text-gray-300">
-                      Análise da distribuição dos registros por tipo de preventiva
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="h-[350px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            activeIndex={activeIndexTipo}
-                            activeShape={renderActiveShape}
-                            data={prepararDadosTipoPreventiva()}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                            onMouseEnter={(_, index) => setActiveIndexTipo(index)}
-                          >
-                            {prepararDadosTipoPreventiva().map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip content={<CustomTooltip />} />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Gráfico de Pizza - Distribuição por Situação */}
-                <Card>
-                  <CardHeader className="bg-[#1e2a38] text-white">
-                    <CardTitle className="text-lg">Distribuição por Situação</CardTitle>
-                    <CardDescription className="text-gray-300">
-                      Análise da distribuição dos registros por situação
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="h-[350px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            activeIndex={activeIndexSituacao}
-                            activeShape={renderActiveShape}
-                            data={prepararDadosSituacao()}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                            onMouseEnter={(_, index) => setActiveIndexSituacao(index)}
-                          >
-                            {prepararDadosSituacao().map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip content={<CustomTooltip />} />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="grid grid-cols-1 gap-6 mb-6">
-                {/* Gráfico de Linha - Evolução por Data */}
-                <Card>
-                  <CardHeader className="bg-[#1e2a38] text-white">
-                    <CardTitle className="text-lg">Evolução de Registros por Data</CardTitle>
-                    <CardDescription className="text-gray-300">
-                      Análise da evolução dos registros ao longo do tempo
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="h-[350px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={prepararDadosPorData()}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis
-                            dataKey="data"
-                            tick={{ fill: "#4b5563" }}
-                            tickLine={{ stroke: "#9ca3af" }}
-                            axisLine={{ stroke: "#9ca3af" }}
-                          />
-                          <YAxis
-                            tick={{ fill: "#4b5563" }}
-                            tickLine={{ stroke: "#9ca3af" }}
-                            axisLine={{ stroke: "#9ca3af" }}
-                          />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Legend />
-                          <Line
-                            type="monotone"
-                            dataKey="total"
-                            name="Total"
-                            stroke="#3b82f6"
-                            strokeWidth={2}
-                            dot={{ r: 4 }}
-                            activeDot={{ r: 8 }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="pendentes"
-                            name="Pendentes"
-                            stroke="#ef4444"
-                            strokeWidth={2}
-                            dot={{ r: 4 }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="emAndamento"
-                            name="Em Andamento"
-                            stroke="#eab308"
-                            strokeWidth={2}
-                            dot={{ r: 4 }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="encerrados"
-                            name="Encerrados"
-                            stroke="#22c55e"
-                            strokeWidth={2}
-                            dot={{ r: 4 }}
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Gráfico de Área - Evolução Acumulada */}
                 <Card>
-                  <CardHeader className="bg-[#1e2a38] text-white">
-                    <CardTitle className="text-lg">Evolução Acumulada por Situação</CardTitle>
-                    <CardDescription className="text-gray-300">
-                      Análise da evolução acumulada dos registros por situação
-                    </CardDescription>
+                  <CardHeader>
+                    <CardTitle>Distribuição por Situação</CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="h-[350px]">
+                  <CardContent>
+                    <div className="h-[300px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={prepararDadosPorData()}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis
-                            dataKey="data"
-                            tick={{ fill: "#4b5563" }}
-                            tickLine={{ stroke: "#9ca3af" }}
-                            axisLine={{ stroke: "#9ca3af" }}
-                          />
-                          <YAxis
-                            tick={{ fill: "#4b5563" }}
-                            tickLine={{ stroke: "#9ca3af" }}
-                            axisLine={{ stroke: "#9ca3af" }}
-                          />
-                          <Tooltip content={<CustomTooltip />} />
+                        <PieChart>
+                          <Pie
+                            data={dadosGraficoSituacao}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                            label
+                          >
+                            {dadosGraficoSituacao.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
                           <Legend />
-                          <Area
-                            type="monotone"
-                            dataKey="pendentes"
-                            name="Pendentes"
-                            stackId="1"
-                            stroke="#ef4444"
-                            fill="#ef4444"
-                            fillOpacity={0.6}
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="emAndamento"
-                            name="Em Andamento"
-                            stackId="1"
-                            stroke="#eab308"
-                            fill="#eab308"
-                            fillOpacity={0.6}
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="encerrados"
-                            name="Encerrados"
-                            stackId="1"
-                            stroke="#22c55e"
-                            fill="#22c55e"
-                            fillOpacity={0.6}
-                          />
-                        </AreaChart>
+                        </PieChart>
                       </ResponsiveContainer>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Gráfico de Barras - Top Frotas */}
                 <Card>
-                  <CardHeader className="bg-[#1e2a38] text-white">
-                    <CardTitle className="text-lg">Top 10 Frotas com Mais Registros</CardTitle>
-                    <CardDescription className="text-gray-300">
-                      Análise das frotas com maior número de registros
-                    </CardDescription>
+                  <CardHeader>
+                    <CardTitle>Distribuição por Tipo</CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="h-[350px]">
+                  <CardContent>
+                    <div className="h-[300px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={prepararDadosPorFrota()} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis
-                            type="number"
-                            tick={{ fill: "#4b5563" }}
-                            tickLine={{ stroke: "#9ca3af" }}
-                            axisLine={{ stroke: "#9ca3af" }}
-                          />
-                          <YAxis
-                            dataKey="frota"
-                            type="category"
-                            tick={{ fill: "#4b5563" }}
-                            tickLine={{ stroke: "#9ca3af" }}
-                            axisLine={{ stroke: "#9ca3af" }}
-                            width={50}
-                          />
-                          <Tooltip content={<CustomTooltip />} />
-                          <Legend />
-                          <Bar dataKey="pendentes" name="Pendentes" stackId="a" fill="#ef4444" />
-                          <Bar dataKey="emAndamento" name="Em Andamento" stackId="a" fill="#eab308" />
-                          <Bar dataKey="encerrados" name="Encerrados" stackId="a" fill="#22c55e" />
+                        <BarChart data={dadosGraficoTipo}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip />
+                          <Bar dataKey="value" fill="#3b82f6" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -1725,25 +1273,85 @@ export function WashingLubricationControl() {
         </CardContent>
       </Card>
 
+      {/* Dialog para mostrar SQL */}
+      <Dialog open={dialogoInicializarBd} onOpenChange={setDialogoInicializarBd}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Script SQL para Criar Tabela</DialogTitle>
+            <DialogDescription>
+              Execute este script SQL no seu banco de dados Supabase para criar a tabela necessária.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <div className="bg-gray-100 p-4 rounded-lg text-sm font-mono overflow-x-auto">
+              <pre className="whitespace-pre-wrap text-xs">
+                {`-- Script SQL para criar a tabela maintenance_records
+CREATE TABLE IF NOT EXISTS maintenance_records (
+    id SERIAL PRIMARY KEY,
+    frota VARCHAR(50) NOT NULL,
+    local VARCHAR(100) NOT NULL,
+    tipo_preventiva VARCHAR(100) NOT NULL,
+    data_programada DATE NOT NULL,
+    data_realizada DATE,
+    situacao VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' 
+        CHECK (situacao IN ('PENDENTE', 'ENCERRADO', 'EM_ANDAMENTO')),
+    horario_agendado TIME NOT NULL,
+    observacao TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Criar índices para melhor performance
+CREATE INDEX IF NOT EXISTS idx_maintenance_records_frota 
+    ON maintenance_records(frota);
+CREATE INDEX IF NOT EXISTS idx_maintenance_records_situacao 
+    ON maintenance_records(situacao);
+CREATE INDEX IF NOT EXISTS idx_maintenance_records_data_programada 
+    ON maintenance_records(data_programada);
+
+-- Inserir dados de exemplo
+INSERT INTO maintenance_records 
+    (frota, local, tipo_preventiva, data_programada, situacao, horario_agendado, observacao) 
+VALUES
+    ('6597', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-26', 'PENDENTE', '04:00', 'TROCA DE ÓLEO'),
+    ('8805', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-27', 'PENDENTE', '08:00', 'EM VIAGEM'),
+    ('4597', 'LUBRIFICADOR', 'lubrificacao', '2025-01-28', 'EM_ANDAMENTO', '14:30', 'Aguardando peças'),
+    ('6602', 'MECANICO', 'troca_oleo', '2025-01-25', 'ENCERRADO', '02:00', 'Concluído com sucesso');`}
+              </pre>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogoInicializarBd(false)}>
+              Fechar
+            </Button>
+            <Button onClick={copiarSQL}>
+              <Copy className="mr-2 h-4 w-4" />
+              Copiar SQL
+            </Button>
+            <Button onClick={tentarConectarBanco}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Tentar Conectar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Dialog para adicionar registro */}
       <Dialog open={dialogoAdicionar} onOpenChange={setDialogoAdicionar}>
         <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader className="flex flex-row items-center gap-3">
-            <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-w5r6EZIgd51nAwt9Zn5bLhga0cn9hX.png"
-              alt="Branco Peres Logo"
-              className="h-10 w-10 object-contain"
-            />
-            <div>
-              <DialogTitle>Adicionar Registro de Manutenção</DialogTitle>
-              <DialogDescription>Preencha os detalhes da manutenção a ser realizada.</DialogDescription>
-            </div>
+          <DialogHeader>
+            <DialogTitle>Adicionar Registro</DialogTitle>
+            <DialogDescription>
+              Preencha os dados para adicionar um novo registro de lavagem e lubrificação.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="frota">Frota Veículo</Label>
+                <Label htmlFor="frota">Frota *</Label>
                 <Input
                   id="frota"
                   value={novoRegistro.frota}
@@ -1753,18 +1361,18 @@ export function WashingLubricationControl() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="descricao_ponto">Descrição Ponto</Label>
+                <Label htmlFor="local">Local *</Label>
                 <Select
-                  value={novoRegistro.descricao_ponto}
-                  onValueChange={(value) => setNovoRegistro({ ...novoRegistro, descricao_ponto: value })}
+                  value={novoRegistro.local}
+                  onValueChange={(value) => setNovoRegistro({ ...novoRegistro, local: value })}
                 >
-                  <SelectTrigger id="descricao_ponto">
-                    <SelectValue placeholder="Selecione a descrição" />
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o local" />
                   </SelectTrigger>
                   <SelectContent>
-                    {descricoesPonto.map((desc) => (
-                      <SelectItem key={desc.value} value={desc.value}>
-                        {desc.label}
+                    {locais.map((local) => (
+                      <SelectItem key={local.value} value={local.value}>
+                        {local.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1773,12 +1381,12 @@ export function WashingLubricationControl() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="tipo_preventiva">Tipo Preventiva</Label>
+              <Label htmlFor="tipo_preventiva">Tipo Preventiva *</Label>
               <Select
                 value={novoRegistro.tipo_preventiva}
                 onValueChange={(value) => setNovoRegistro({ ...novoRegistro, tipo_preventiva: value })}
               >
-                <SelectTrigger id="tipo_preventiva">
+                <SelectTrigger>
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1793,38 +1401,29 @@ export function WashingLubricationControl() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="data_programada">Data Programada</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {novoRegistro.data_programada
-                        ? format(new Date(novoRegistro.data_programada), "dd/MM/yyyy")
-                        : "Selecione a data"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dataSelecionada}
-                      onSelect={(date) => {
-                        setDataSelecionada(date)
-                        if (date) {
-                          setNovoRegistro({
-                            ...novoRegistro,
-                            data_programada: format(date, "yyyy-MM-dd"),
-                          })
-                        }
-                      }}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
+                <Label htmlFor="data_programada">Data Programada *</Label>
+                <Input
+                  id="data_programada"
+                  type="date"
+                  value={novoRegistro.data_programada}
+                  onChange={(e) => setNovoRegistro({ ...novoRegistro, data_programada: e.target.value })}
+                />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="horario_agendado">Horário Agendado</Label>
+                <Label htmlFor="data_realizada">Data Realizada</Label>
+                <Input
+                  id="data_realizada"
+                  type="date"
+                  value={novoRegistro.data_realizada || ""}
+                  onChange={(e) => setNovoRegistro({ ...novoRegistro, data_realizada: e.target.value || undefined })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="horario_agendado">Horário Agendado *</Label>
                 <Input
                   id="horario_agendado"
                   type="time"
@@ -1832,25 +1431,25 @@ export function WashingLubricationControl() {
                   onChange={(e) => setNovoRegistro({ ...novoRegistro, horario_agendado: e.target.value })}
                 />
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="situacao">Situação</Label>
-              <Select
-                value={novoRegistro.situacao}
-                onValueChange={(value: "PENDENTE" | "ENCERRADO" | "EM_ANDAMENTO") =>
-                  setNovoRegistro({ ...novoRegistro, situacao: value })
-                }
-              >
-                <SelectTrigger id="situacao">
-                  <SelectValue placeholder="Selecione a situação" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PENDENTE">PENDENTE</SelectItem>
-                  <SelectItem value="ENCERRADO">ENCERRADO</SelectItem>
-                  <SelectItem value="EM_ANDAMENTO">EM ANDAMENTO</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="situacao">Situação</Label>
+                <Select
+                  value={novoRegistro.situacao}
+                  onValueChange={(value: "PENDENTE" | "ENCERRADO" | "EM_ANDAMENTO") =>
+                    setNovoRegistro({ ...novoRegistro, situacao: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a situação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PENDENTE">PENDENTE</SelectItem>
+                    <SelectItem value="EM_ANDAMENTO">EM ANDAMENTO</SelectItem>
+                    <SelectItem value="ENCERRADO">ENCERRADO</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -1868,31 +1467,26 @@ export function WashingLubricationControl() {
             <Button variant="outline" onClick={() => setDialogoAdicionar(false)}>
               Cancelar
             </Button>
-            <Button onClick={adicionarRegistro}>Adicionar</Button>
+            <Button onClick={adicionarRegistro} disabled={carregando}>
+              {carregando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Adicionar"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Dialog para editar registro */}
-      <Dialog open={dialogoEditarRegistro} onOpenChange={setDialogoEditarRegistro}>
+      <Dialog open={dialogoEditar} onOpenChange={setDialogoEditar}>
         <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader className="flex flex-row items-center gap-3">
-            <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-w5r6EZIgd51nAwt9Zn5bLhga0cn9hX.png"
-              alt="Branco Peres Logo"
-              className="h-10 w-10 object-contain"
-            />
-            <div>
-              <DialogTitle>Editar Registro de Manutenção</DialogTitle>
-              <DialogDescription>Atualize os detalhes da manutenção.</DialogDescription>
-            </div>
+          <DialogHeader>
+            <DialogTitle>Editar Registro</DialogTitle>
+            <DialogDescription>Atualize os dados do registro selecionado.</DialogDescription>
           </DialogHeader>
 
           {registroSelecionado && (
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-frota">Frota Veículo</Label>
+                  <Label htmlFor="edit-frota">Frota *</Label>
                   <Input
                     id="edit-frota"
                     value={registroSelecionado.frota}
@@ -1901,20 +1495,18 @@ export function WashingLubricationControl() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-descricao_ponto">Descrição Ponto</Label>
+                  <Label htmlFor="edit-local">Local *</Label>
                   <Select
-                    value={registroSelecionado.descricao_ponto}
-                    onValueChange={(value) =>
-                      setRegistroSelecionado({ ...registroSelecionado, descricao_ponto: value })
-                    }
+                    value={registroSelecionado.local}
+                    onValueChange={(value) => setRegistroSelecionado({ ...registroSelecionado, local: value })}
                   >
-                    <SelectTrigger id="edit-descricao_ponto">
-                      <SelectValue placeholder="Selecione a descrição" />
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o local" />
                     </SelectTrigger>
                     <SelectContent>
-                      {descricoesPonto.map((desc) => (
-                        <SelectItem key={desc.value} value={desc.value}>
-                          {desc.label}
+                      {locais.map((local) => (
+                        <SelectItem key={local.value} value={local.value}>
+                          {local.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1923,12 +1515,12 @@ export function WashingLubricationControl() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit-tipo_preventiva">Tipo Preventiva</Label>
+                <Label htmlFor="edit-tipo_preventiva">Tipo Preventiva *</Label>
                 <Select
                   value={registroSelecionado.tipo_preventiva}
                   onValueChange={(value) => setRegistroSelecionado({ ...registroSelecionado, tipo_preventiva: value })}
                 >
-                  <SelectTrigger id="edit-tipo_preventiva">
+                  <SelectTrigger>
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1943,35 +1535,33 @@ export function WashingLubricationControl() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-data_programada">Data Programada</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {format(new Date(registroSelecionado.data_programada), "dd/MM/yyyy")}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={new Date(registroSelecionado.data_programada)}
-                        onSelect={(date) => {
-                          if (date) {
-                            setRegistroSelecionado({
-                              ...registroSelecionado,
-                              data_programada: format(date, "yyyy-MM-dd"),
-                            })
-                          }
-                        }}
-                        initialFocus
-                        locale={ptBR}
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <Label htmlFor="edit-data_programada">Data Programada *</Label>
+                  <Input
+                    id="edit-data_programada"
+                    type="date"
+                    value={registroSelecionado.data_programada}
+                    onChange={(e) =>
+                      setRegistroSelecionado({ ...registroSelecionado, data_programada: e.target.value })
+                    }
+                  />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit-horario_agendado">Horário Agendado</Label>
+                  <Label htmlFor="edit-data_realizada">Data Realizada</Label>
+                  <Input
+                    id="edit-data_realizada"
+                    type="date"
+                    value={registroSelecionado.data_realizada || ""}
+                    onChange={(e) =>
+                      setRegistroSelecionado({ ...registroSelecionado, data_realizada: e.target.value || undefined })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-horario_agendado">Horário Agendado *</Label>
                   <Input
                     id="edit-horario_agendado"
                     type="time"
@@ -1996,13 +1586,13 @@ export function WashingLubricationControl() {
                     })
                   }
                 >
-                  <SelectTrigger id="edit-situacao">
+                  <SelectTrigger>
                     <SelectValue placeholder="Selecione a situação" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="PENDENTE">PENDENTE</SelectItem>
-                    <SelectItem value="ENCERRADO">ENCERRADO</SelectItem>
                     <SelectItem value="EM_ANDAMENTO">EM ANDAMENTO</SelectItem>
+                    <SelectItem value="ENCERRADO">ENCERRADO</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -2019,137 +1609,11 @@ export function WashingLubricationControl() {
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogoEditarRegistro(false)}>
+            <Button variant="outline" onClick={() => setDialogoEditar(false)}>
               Cancelar
             </Button>
-            <Button
-              onClick={() => {
-                if (registroSelecionado) {
-                  atualizarRegistro(registroSelecionado)
-                  setDialogoEditarRegistro(false)
-                }
-              }}
-            >
-              Salvar Alterações
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog para verificar banco de dados */}
-      <Dialog open={dialogoInicializarBd} onOpenChange={setDialogoInicializarBd}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader className="flex flex-row items-center gap-3">
-            <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-w5r6EZIgd51nAwt9Zn5bLhga0cn9hX.png"
-              alt="Branco Peres Logo"
-              className="h-10 w-10 object-contain"
-            />
-            <div>
-              <DialogTitle>Verificação do Banco de Dados</DialogTitle>
-              <DialogDescription>Verificar a conexão com o banco de dados e a tabela de registros.</DialogDescription>
-            </div>
-          </DialogHeader>
-
-          <div className="py-4">
-            <div
-              className={`p-4 rounded-md ${
-                statusInicializacao === "idle"
-                  ? "bg-gray-100"
-                  : statusInicializacao === "loading"
-                    ? "bg-blue-50"
-                    : statusInicializacao === "success"
-                      ? "bg-green-50"
-                      : "bg-red-50"
-              }`}
-            >
-              <p
-                className={`${
-                  statusInicializacao === "idle"
-                    ? "text-gray-700"
-                    : statusInicializacao === "loading"
-                      ? "text-blue-700"
-                      : statusInicializacao === "success"
-                        ? "text-green-700"
-                        : "text-red-700"
-                }`}
-              >
-                {statusInicializacao === "idle"
-                  ? 'Clique em "Verificar Banco de Dados" para iniciar a verificação.'
-                  : mensagemInicializacao}
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDialogoInicializarBd(false)}
-              disabled={statusInicializacao === "loading"}
-            >
-              Fechar
-            </Button>
-            <Button
-              onClick={verificarBancoDados}
-              disabled={statusInicializacao === "loading" || statusInicializacao === "success"}
-            >
-              {statusInicializacao === "loading" ? "Verificando..." : "Verificar Banco de Dados"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog para criar tabela */}
-      <Dialog open={dialogoCriarTabela} onOpenChange={setDialogoCriarTabela}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader className="flex flex-row items-center gap-3">
-            <img
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-w5r6EZIgd51nAwt9Zn5bLhga0cn9hX.png"
-              alt="Branco Peres Logo"
-              className="h-10 w-10 object-contain"
-            />
-            <div>
-              <DialogTitle>Tabela de Registros</DialogTitle>
-              <DialogDescription>
-                A tabela 'maintenance_records' já foi criada. Deseja populá-la com dados de exemplo?
-              </DialogDescription>
-            </div>
-          </DialogHeader>
-
-          <div className="py-4">
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Tabela encontrada</AlertTitle>
-              <AlertDescription>
-                A tabela 'maintenance_records' já existe no banco de dados. Você pode populá-la com alguns registros de
-                exemplo para começar a usar o sistema.
-              </AlertDescription>
-            </Alert>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setDialogoCriarTabela(false)
-                setDialogoInicializarBd(false)
-              }}
-              disabled={criandoTabela}
-            >
-              Cancelar
-            </Button>
-            <Button onClick={popularTabela} disabled={criandoTabela}>
-              {criandoTabela ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Populando...
-                </>
-              ) : (
-                <>
-                  <Database className="mr-2 h-4 w-4" />
-                  Popular Tabela
-                </>
-              )}
+            <Button onClick={atualizarRegistro} disabled={carregando}>
+              {carregando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Salvar"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2157,3 +1621,6 @@ export function WashingLubricationControl() {
     </div>
   )
 }
+
+// Exportações
+export default WashingLubricationControl
