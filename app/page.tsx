@@ -27,7 +27,6 @@ import { PendenciaSection } from "@/components/pendencia-section"
 import { PendenciasRecentes } from "@/components/pendencias-recentes"
 import { PendenciasLiberadas } from "@/components/pendencias-liberadas"
 import { DashboardCharts } from "@/components/dashboard-charts"
-import { ReminderSystem } from "@/components/reminder-system"
 import { WashingLubricationControl } from "@/components/washing-lubrication-control"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -572,7 +571,6 @@ export default function TrocaDeTurno() {
       case "programacao":
         return (
           <>
-            <ReminderSystem />
             <div className="h-6"></div>
             <Card className="bg-slate-900/50 border-slate-700/50 backdrop-blur-sm futuristic-card">
               <CardHeader className="pb-2">

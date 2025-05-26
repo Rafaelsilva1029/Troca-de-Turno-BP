@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { X, Check, Clock, Bell, Volume2, VolumeX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { NotificationType } from "./notification-manager"
 import { TruckAnimation } from "./truck-animation"
-import { useAudio } from "@/lib/audio-service"
 
 interface TruckNotificationProps {
   id: string
@@ -30,7 +29,7 @@ export function TruckNotification({
 }: TruckNotificationProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
-  const audioService = useAudio()
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     // Animar a entrada da notificação
@@ -38,8 +37,24 @@ export function TruckNotification({
       setIsVisible(true)
     }, 100)
 
-    return () => clearTimeout(timer)
-  }, [])
+    // Inicializar áudio se houver um soundId
+    if (soundId && typeof window !== "undefined") {
+      audioRef.current = new Audio("/notification-sound.mp3")
+      if (audioRef.current) {
+        audioRef.current.volume = 0.5
+        audioRef.current.play().catch((err) => console.error("Erro ao reproduzir áudio:", err))
+      }
+    }
+
+    return () => {
+      clearTimeout(timer)
+      // Parar áudio quando o componente for desmontado
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+    }
+  }, [soundId])
 
   const handleDismiss = () => {
     // Animar a saída da notificação
@@ -58,11 +73,11 @@ export function TruckNotification({
   }
 
   const toggleMute = () => {
-    if (audioService && soundId) {
+    if (audioRef.current) {
       if (isMuted) {
-        audioService.play(soundId)
+        audioRef.current.play().catch((err) => console.error("Erro ao reproduzir áudio:", err))
       } else {
-        audioService.stop(soundId)
+        audioRef.current.pause()
       }
       setIsMuted(!isMuted)
     }
