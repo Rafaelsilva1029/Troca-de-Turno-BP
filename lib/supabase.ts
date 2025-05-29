@@ -1,5 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 
+export { createClient } from "@supabase/supabase-js"
+
 // Singleton pattern for Supabase client
 let supabaseClient: ReturnType<typeof createClient> | null = null
 
