@@ -1,8 +1,17 @@
 "use client"
 
+import dynamic from "next/dynamic"
+
+// Importação dinâmica com SSR desabilitado para evitar problemas de pré-renderização
+const UltraRobustExtractor = dynamic(() => import("@/components/ultra-robust-extractor"), {
+  ssr: false,
+  loading: () => <p className="p-4">Carregando extrator...</p>,
+})
+
 export default function ExtratorUltraRobustoPage() {
   const handleDataExtracted = (data: any[]) => {
-    console.log('Dados extraídos:', data)
+    console.log("Dados extraídos:", data)
+    // Implementação para usar os dados extraídos
   }
 
   return (
