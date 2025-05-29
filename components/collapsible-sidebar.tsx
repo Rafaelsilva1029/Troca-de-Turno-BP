@@ -84,7 +84,7 @@ export function CollapsibleSidebar({
   const navItems = [
     { id: "programacao", label: "Programação", icon: Calendar, notifications: 0 },
     { id: "pendencias", label: "Pendências", icon: Tool, notifications: 5 },
-    { id: "equipamentos-localizacao", label: "Equipamentos Localização", icon: MapPin, notifications: 0 }, // Adicionar esta linha
+    { id: "equipamentos-localizacao", label: "Equipamentos Localização", icon: MapPin, notifications: 0 },
     { id: "veiculos", label: "Veículos", icon: Truck, notifications: 0 },
     { id: "liberados", label: "Liberados", icon: CheckCircle, notifications: 2 },
     { id: "equipe", label: "Equipe", icon: Users, notifications: 0 },

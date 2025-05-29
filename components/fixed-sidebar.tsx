@@ -16,6 +16,7 @@ import {
   LogOut,
   Moon,
   Sun,
+  MapPin,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -42,6 +43,7 @@ export function FixedSidebar({ activeItem, onItemClick, theme, toggleTheme }: Fi
     { id: "liberados", label: "Equipamentos Liberados", icon: CheckCircle },
     { id: "lavagem", label: "Lavagem e Lubrificação", icon: Activity },
     { id: "relatorios", label: "Relatórios", icon: FileText },
+    { id: "equipamentos-localizacao", label: "Equipamentos Localização", icon: MapPin },
   ]
 
   return (

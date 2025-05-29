@@ -1,32 +1,23 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Search, Filter, MapPin, Truck, Edit, Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase"
-import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { MapPin, Search, Plus, Edit, Trash2, AlertTriangle } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 
 interface Equipamento {
   id: string
   numero_frota: string
   categoria: string
   localizacao: string
-  servico: string
+  servico: string | null
   status: string
   created_at: string
   updated_at: string
@@ -34,30 +25,31 @@ interface Equipamento {
 
 const categorias = [
   "PIPAS ÁGUA BRUTA",
-  "PIPAS ÁGUA LIMPA/TANQUES",
+  "PIPAS ÁGUA TRATADA",
   "MUNCK DISPONÍVEL",
   "CAÇAMBAS DISPONÍVEIS",
-  "CAVALOS / PRANCHAS / VINHAÇA LOCALIZADA",
-  "COLETA / VIAGEM",
-  "ÁREAS DE VIVÊNCIA",
-  "CARRETAS RTK / GPS",
-  "REBOQUE MUDA",
   "VEÍCULOS",
+  "TRATORES",
+  "MOTONIVELADORAS",
+  "ESCAVADEIRAS",
+  "CARREGADEIRAS",
+  "OUTROS",
 ]
 
-export function EquipamentosLocalizacao() {
+const statusOptions = ["ATIVO", "MANUTENÇÃO", "INATIVO", "RESERVA"]
+
+export default function EquipamentosLocalizacao() {
   const [equipamentos, setEquipamentos] = useState<Equipamento[]>([])
   const [filteredEquipamentos, setFilteredEquipamentos] = useState<Equipamento[]>([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [editingEquipamento, setEditingEquipamento] = useState<Equipamento | null>(null)
-  const [loading, setLoading] = useState(true)
-  const { toast } = useToast()
-
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>("PIPAS ÁGUA BRUTA") // Updated default value
+  const [isLoading, setIsLoading] = useState(true)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [currentEquipamento, setCurrentEquipamento] = useState<Equipamento | null>(null)
   const [formData, setFormData] = useState({
     numero_frota: "",
-    categoria: "",
+    categoria: "PIPAS ÁGUA BRUTA", // Updated default value
     localizacao: "",
     servico: "",
     status: "ATIVO",
@@ -65,35 +57,37 @@ export function EquipamentosLocalizacao() {
 
   const supabase = createClient()
 
-  // Carregar equipamentos do banco
-  const loadEquipamentos = async () => {
-    try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from("equipamentos_localizacao")
-        .select("*")
-        .order("categoria", { ascending: true })
-        .order("numero_frota", { ascending: true })
-
-      if (error) throw error
-
-      setEquipamentos(data || [])
-      setFilteredEquipamentos(data || [])
-    } catch (error) {
-      console.error("Erro ao carregar equipamentos:", error)
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar equipamentos",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
+  // Carregar equipamentos
   useEffect(() => {
-    loadEquipamentos()
-  }, [])
+    async function fetchEquipamentos() {
+      try {
+        setIsLoading(true)
+        const { data, error } = await supabase
+          .from("equipamentos_localizacao")
+          .select("*")
+          .order("categoria", { ascending: true })
+          .order("numero_frota", { ascending: true })
+
+        if (error) {
+          throw error
+        }
+
+        setEquipamentos(data || [])
+        setFilteredEquipamentos(data || [])
+      } catch (error) {
+        console.error("Erro ao carregar equipamentos:", error)
+        toast({
+          title: "Erro ao carregar equipamentos",
+          description: "Não foi possível carregar os equipamentos. Tente novamente mais tarde.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchEquipamentos()
+  }, [supabase])
 
   // Filtrar equipamentos
   useEffect(() => {
@@ -104,395 +98,363 @@ export function EquipamentosLocalizacao() {
         (eq) =>
           eq.numero_frota.toLowerCase().includes(searchTerm.toLowerCase()) ||
           eq.localizacao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          eq.servico.toLowerCase().includes(searchTerm.toLowerCase()),
+          (eq.servico && eq.servico.toLowerCase().includes(searchTerm.toLowerCase())),
       )
     }
 
-    if (selectedCategory !== "all") {
-      filtered = filtered.filter((eq) => eq.categoria === selectedCategory)
+    if (categoriaFiltro) {
+      filtered = filtered.filter((eq) => eq.categoria === categoriaFiltro)
     }
 
     setFilteredEquipamentos(filtered)
-  }, [equipamentos, searchTerm, selectedCategory])
+  }, [searchTerm, categoriaFiltro, equipamentos])
 
-  // Adicionar/Editar equipamento
-  const handleSubmit = async () => {
+  // Resetar formulário
+  const resetForm = () => {
+    setFormData({
+      numero_frota: "",
+      categoria: "PIPAS ÁGUA BRUTA", // Updated default value
+      localizacao: "",
+      servico: "",
+      status: "ATIVO",
+    })
+    setIsEditMode(false)
+    setCurrentEquipamento(null)
+  }
+
+  // Abrir formulário para edição
+  const handleEdit = (equipamento: Equipamento) => {
+    setCurrentEquipamento(equipamento)
+    setFormData({
+      numero_frota: equipamento.numero_frota,
+      categoria: equipamento.categoria,
+      localizacao: equipamento.localizacao,
+      servico: equipamento.servico || "",
+      status: equipamento.status,
+    })
+    setIsEditMode(true)
+    setIsDialogOpen(true)
+  }
+
+  // Excluir equipamento
+  const handleDelete = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir este equipamento?")) return
+
     try {
-      if (editingEquipamento) {
-        const { error } = await supabase
+      const { error } = await supabase.from("equipamentos_localizacao").delete().eq("id", id)
+
+      if (error) {
+        throw error
+      }
+
+      setEquipamentos((prev) => prev.filter((eq) => eq.id !== id))
+      toast({
+        title: "Equipamento excluído",
+        description: "O equipamento foi excluído com sucesso.",
+      })
+    } catch (error) {
+      console.error("Erro ao excluir equipamento:", error)
+      toast({
+        title: "Erro ao excluir equipamento",
+        description: "Não foi possível excluir o equipamento. Tente novamente mais tarde.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Salvar equipamento (criar ou atualizar)
+  const handleSave = async () => {
+    try {
+      // Validação básica
+      if (!formData.numero_frota || !formData.categoria || !formData.localizacao) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Preencha todos os campos obrigatórios.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (isEditMode && currentEquipamento) {
+        // Atualizar equipamento existente
+        const { data, error } = await supabase
           .from("equipamentos_localizacao")
           .update({
             numero_frota: formData.numero_frota,
             categoria: formData.categoria,
             localizacao: formData.localizacao,
-            servico: formData.servico,
+            servico: formData.servico || null,
             status: formData.status,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", editingEquipamento.id)
+          .eq("id", currentEquipamento.id)
+          .select()
 
-        if (error) throw error
+        if (error) {
+          throw error
+        }
+
+        setEquipamentos((prev) => prev.map((eq) => (eq.id === currentEquipamento.id ? { ...data[0] } : eq)))
 
         toast({
-          title: "Sucesso",
-          description: "Equipamento atualizado com sucesso!",
+          title: "Equipamento atualizado",
+          description: "As informações do equipamento foram atualizadas com sucesso.",
         })
       } else {
-        const { error } = await supabase.from("equipamentos_localizacao").insert([
-          {
+        // Criar novo equipamento
+        const { data, error } = await supabase
+          .from("equipamentos_localizacao")
+          .insert({
             numero_frota: formData.numero_frota,
             categoria: formData.categoria,
             localizacao: formData.localizacao,
-            servico: formData.servico,
+            servico: formData.servico || null,
             status: formData.status,
-          },
-        ])
+          })
+          .select()
 
-        if (error) throw error
+        if (error) {
+          throw error
+        }
+
+        setEquipamentos((prev) => [...prev, data[0]])
 
         toast({
-          title: "Sucesso",
-          description: "Equipamento adicionado com sucesso!",
+          title: "Equipamento adicionado",
+          description: "O equipamento foi adicionado com sucesso.",
         })
       }
 
-      setIsAddDialogOpen(false)
-      setEditingEquipamento(null)
-      setFormData({
-        numero_frota: "",
-        categoria: "",
-        localizacao: "",
-        servico: "",
-        status: "ATIVO",
-      })
-      loadEquipamentos()
+      // Fechar diálogo e resetar formulário
+      setIsDialogOpen(false)
+      resetForm()
     } catch (error) {
       console.error("Erro ao salvar equipamento:", error)
       toast({
-        title: "Erro",
-        description: "Erro ao salvar equipamento",
+        title: "Erro ao salvar equipamento",
+        description: "Não foi possível salvar o equipamento. Tente novamente mais tarde.",
         variant: "destructive",
       })
     }
-  }
-
-  // Excluir equipamento
-  const handleDelete = async (id: string) => {
-    try {
-      const { error } = await supabase.from("equipamentos_localizacao").delete().eq("id", id)
-
-      if (error) throw error
-
-      toast({
-        title: "Sucesso",
-        description: "Equipamento excluído com sucesso!",
-      })
-      loadEquipamentos()
-    } catch (error) {
-      console.error("Erro ao excluir equipamento:", error)
-      toast({
-        title: "Erro",
-        description: "Erro ao excluir equipamento",
-        variant: "destructive",
-      })
-    }
-  }
-
-  // Abrir dialog de edição
-  const handleEdit = (equipamento: Equipamento) => {
-    setEditingEquipamento(equipamento)
-    setFormData({
-      numero_frota: equipamento.numero_frota,
-      categoria: equipamento.categoria,
-      localizacao: equipamento.localizacao,
-      servico: equipamento.servico,
-      status: equipamento.status,
-    })
-    setIsAddDialogOpen(true)
   }
 
   // Agrupar equipamentos por categoria
-  const equipamentosPorCategoria = categorias.reduce(
-    (acc, categoria) => {
-      acc[categoria] = filteredEquipamentos.filter((eq) => eq.categoria === categoria)
-      return acc
-    },
-    {} as Record<string, Equipamento[]>,
-  )
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-slate-400">Carregando equipamentos...</div>
-      </div>
-    )
-  }
+  const equipamentosPorCategoria = categorias.map((categoria) => {
+    return {
+      categoria,
+      equipamentos: filteredEquipamentos.filter((eq) => eq.categoria === categoria),
+    }
+  })
 
   return (
     <div className="space-y-6">
-      {/* Controles */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-4 flex-1">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
+      <div>
+        <h1 className="text-3xl font-bold text-slate-100">Equipamentos Localização</h1>
+        <p className="text-slate-400 mt-2">Gerencie a localização e status dos equipamentos por categoria</p>
+      </div>
+
+      {/* Filtros e ações */}
+      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+        <div className="flex flex-1 gap-4 w-full sm:w-auto">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
             <Input
-              placeholder="Buscar por frota, localização ou serviço..."
+              type="search"
+              placeholder="Buscar equipamento, localização..."
+              className="pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-slate-800 border-slate-700 text-slate-100"
             />
           </div>
 
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full sm:w-[250px] bg-slate-800 border-slate-700 text-slate-100">
-              <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Filtrar por categoria" />
+          <Select value={categoriaFiltro || ""} onValueChange={(value) => setCategoriaFiltro(value || null)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Todas categorias" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as categorias</SelectItem>
-              {categorias.map((categoria) => (
-                <SelectItem key={categoria} value={categoria}>
-                  {categoria}
+              <SelectItem value="">Todas categorias</SelectItem>
+              {categorias.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {cat}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-green-600 hover:bg-green-700">
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar Equipamento
+            <Button
+              onClick={() => {
+                resetForm()
+                setIsDialogOpen(true)
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" /> Adicionar Equipamento
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-slate-800 border-slate-700">
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle className="text-slate-100">
-                {editingEquipamento ? "Editar Equipamento" : "Adicionar Equipamento"}
-              </DialogTitle>
-              <DialogDescription className="text-slate-400">
-                {editingEquipamento
-                  ? "Edite as informações do equipamento"
-                  : "Adicione um novo equipamento à localização"}
-              </DialogDescription>
+              <DialogTitle>{isEditMode ? "Editar Equipamento" : "Adicionar Equipamento"}</DialogTitle>
             </DialogHeader>
-
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="numero_frota" className="text-right text-slate-300">
-                  Número da Frota
+                <Label htmlFor="numero_frota" className="text-right">
+                  Nº Frota*
                 </Label>
                 <Input
                   id="numero_frota"
                   value={formData.numero_frota}
                   onChange={(e) => setFormData({ ...formData, numero_frota: e.target.value })}
-                  className="col-span-3 bg-slate-700 border-slate-600 text-slate-100"
-                  placeholder="Ex: 4575"
+                  className="col-span-3"
                 />
               </div>
-
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="categoria" className="text-right text-slate-300">
-                  Categoria
+                <Label htmlFor="categoria" className="text-right">
+                  Categoria*
                 </Label>
                 <Select
                   value={formData.categoria}
                   onValueChange={(value) => setFormData({ ...formData, categoria: value })}
                 >
-                  <SelectTrigger className="col-span-3 bg-slate-700 border-slate-600 text-slate-100">
+                  <SelectTrigger className="col-span-3">
                     <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categorias.map((categoria) => (
-                      <SelectItem key={categoria} value={categoria}>
-                        {categoria}
+                    {categorias.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="localizacao" className="text-right text-slate-300">
-                  Localização
+                <Label htmlFor="localizacao" className="text-right">
+                  Localização*
                 </Label>
                 <Input
                   id="localizacao"
                   value={formData.localizacao}
                   onChange={(e) => setFormData({ ...formData, localizacao: e.target.value })}
-                  className="col-span-3 bg-slate-700 border-slate-600 text-slate-100"
-                  placeholder="Ex: Pátio Usina"
+                  className="col-span-3"
                 />
               </div>
-
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="servico" className="text-right text-slate-300">
-                  Serviço/Observações
+                <Label htmlFor="servico" className="text-right">
+                  Serviço
                 </Label>
                 <Textarea
                   id="servico"
                   value={formData.servico}
                   onChange={(e) => setFormData({ ...formData, servico: e.target.value })}
-                  className="col-span-3 bg-slate-700 border-slate-600 text-slate-100"
-                  placeholder="Ex: Molhando trajeto fundo 14 até 24"
+                  className="col-span-3"
+                  rows={3}
                 />
               </div>
-
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="status" className="text-right text-slate-300">
+                <Label htmlFor="status" className="text-right">
                   Status
                 </Label>
                 <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                  <SelectTrigger className="col-span-3 bg-slate-700 border-slate-600 text-slate-100">
+                  <SelectTrigger className="col-span-3">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ATIVO">ATIVO</SelectItem>
-                    <SelectItem value="INATIVO">INATIVO</SelectItem>
-                    <SelectItem value="MANUTENÇÃO">MANUTENÇÃO</SelectItem>
+                    {statusOptions.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsAddDialogOpen(false)
-                  setEditingEquipamento(null)
-                  setFormData({
-                    numero_frota: "",
-                    categoria: "",
-                    localizacao: "",
-                    servico: "",
-                    status: "ATIVO",
-                  })
-                }}
-                className="border-slate-600 text-slate-300 hover:bg-slate-700"
-              >
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700">
-                {editingEquipamento ? "Atualizar" : "Adicionar"}
-              </Button>
-            </DialogFooter>
+              <Button onClick={handleSave}>{isEditMode ? "Atualizar" : "Adicionar"}</Button>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Lista de Equipamentos por Categoria */}
-      <div className="space-y-6">
-        {categorias.map((categoria) => {
-          const equipamentosCategoria = equipamentosPorCategoria[categoria]
+      {/* Estado de carregamento */}
+      {isLoading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        </div>
+      )}
 
-          if (equipamentosCategoria.length === 0 && selectedCategory !== "all" && selectedCategory !== categoria) {
-            return null
-          }
+      {/* Mensagem quando não há equipamentos */}
+      {!isLoading && filteredEquipamentos.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <AlertTriangle className="h-12 w-12 text-yellow-500 mb-4" />
+          <h3 className="text-xl font-medium text-slate-200">Nenhum equipamento encontrado</h3>
+          <p className="text-slate-400 mt-2 max-w-md">
+            {searchTerm || categoriaFiltro
+              ? "Nenhum equipamento corresponde aos filtros aplicados."
+              : "Não há equipamentos cadastrados. Clique em 'Adicionar Equipamento' para começar."}
+          </p>
+        </div>
+      )}
 
-          return (
-            <Card key={categoria} className="bg-slate-800 border-slate-700">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg font-bold text-green-400 uppercase">@ {categoria}</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="bg-slate-700 text-slate-300">
-                      {equipamentosCategoria.length} equipamentos
-                    </Badge>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-green-600 text-green-400 hover:bg-green-600 hover:text-white"
-                          onClick={() => {
-                            setFormData({
-                              numero_frota: "",
-                              categoria: categoria,
-                              localizacao: "",
-                              servico: "",
-                              status: "ATIVO",
-                            })
-                            setEditingEquipamento(null)
-                            setIsAddDialogOpen(true)
-                          }}
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Adicionar
-                        </Button>
-                      </DialogTrigger>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent>
-                {equipamentosCategoria.length === 0 ? (
-                  <div className="text-center py-8 text-slate-400">
-                    <Truck className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                    <p>Nenhum equipamento nesta categoria</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {equipamentosCategoria.map((equipamento) => (
-                      <div
-                        key={equipamento.id}
-                        className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg border border-slate-600/50 hover:bg-slate-700 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-green-400" />
-                            <span className="font-bold text-green-400 text-lg">{equipamento.numero_frota}</span>
+      {/* Lista de equipamentos por categoria */}
+      {!isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {equipamentosPorCategoria
+            .filter((grupo) => grupo.equipamentos.length > 0)
+            .map((grupo) => (
+              <Card key={grupo.categoria} className="overflow-hidden">
+                <CardHeader className="bg-slate-800">
+                  <CardTitle className="flex items-center text-lg">
+                    <MapPin className="h-5 w-5 mr-2 text-blue-400" />
+                    {grupo.categoria} ({grupo.equipamentos.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y divide-slate-700">
+                    {grupo.equipamentos.map((eq) => (
+                      <div key={eq.id} className="p-4 hover:bg-slate-800/50 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-medium text-slate-200">
+                              Frota: <span className="text-blue-400">{eq.numero_frota}</span>
+                            </h4>
+                            <p className="text-sm text-slate-300 mt-1">
+                              <span className="font-medium">Localização:</span> {eq.localizacao}
+                            </p>
+                            {eq.servico && <p className="text-sm text-slate-400 mt-1 line-clamp-2">{eq.servico}</p>}
+                            <div
+                              className={`inline-flex items-center mt-2 px-2 py-1 rounded-full text-xs font-medium ${
+                                eq.status === "ATIVO"
+                                  ? "bg-green-500/20 text-green-400"
+                                  : eq.status === "MANUTENÇÃO"
+                                    ? "bg-yellow-500/20 text-yellow-400"
+                                    : "bg-red-500/20 text-red-400"
+                              }`}
+                            >
+                              {eq.status}
+                            </div>
                           </div>
-                          <div className="text-slate-300">
-                            <span className="font-medium">{equipamento.localizacao}</span>
-                            {equipamento.servico && <span className="text-slate-400"> – {equipamento.servico}</span>}
+                          <div className="flex space-x-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleEdit(eq)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDelete(eq.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={equipamento.status === "ATIVO" ? "default" : "secondary"}
-                            className={
-                              equipamento.status === "ATIVO"
-                                ? "bg-green-600 text-white"
-                                : equipamento.status === "MANUTENÇÃO"
-                                  ? "bg-yellow-600 text-white"
-                                  : "bg-red-600 text-white"
-                            }
-                          >
-                            {equipamento.status}
-                          </Badge>
-
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEdit(equipamento)}
-                            className="text-slate-400 hover:text-slate-100"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDelete(equipamento.id)}
-                            className="text-red-400 hover:text-red-300"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
                     ))}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                </CardContent>
+              </Card>
+            ))}
+        </div>
+      )}
     </div>
   )
 }
