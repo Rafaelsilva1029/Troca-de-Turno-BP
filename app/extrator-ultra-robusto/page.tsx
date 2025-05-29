@@ -1,16 +1,13 @@
 "use client"
 
-import { UltraRobustExtractor } from "@/components/ultra-robust-extractor"
-
 export default function ExtratorUltraRobustoPage() {
-  const handleDataExtracted = (data: any) => {
-    console.log("Dados extraídos:", data)
-    // Aqui você pode implementar a lógica para usar os dados extraídos
+  const handleDataExtracted = (data: any[]) => {
+    console.log('Dados extraídos:', data)
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-2xl font-bold mb-6">Extrator Ultra Robusto de Dados de Agendamentos</h1>
+    <div className="container mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-6">Extrator Ultra Robusto</h1>
       <UltraRobustExtractor onDataExtracted={handleDataExtracted} />
     </div>
   )
