@@ -46,15 +46,30 @@ import {
 import { LiberarPendenciaModal } from "@/components/liberar-pendencia-modal"
 import { VehicleDialog } from "@/components/vehicle-dialog"
 import { useToast } from "@/hooks/use-toast"
+// Remove the import
+// Remove import { DataExtractionSection } from "@/components/data-extraction-section"
+
+// Após as importações iniciais, adicione a importação do componente PendenciasDashboard:
+import { PendenciasDashboard } from "@/components/pendencias-dashboard"
+import { DeleteAllPendenciasModal } from "@/components/delete-all-pendencias-modal"
 
 // Create context for pendências data
 import React from "react"
+import { format } from "date-fns"
+
+// To this:
+interface PendenciaItem {
+  id?: string
+  description: string
+  frota: string
+  priority?: "baixa" | "media" | "alta" | "urgente"
+}
 
 type PendenciasContextType = {
-  pendenciasData: Record<string, string[]>
-  updatePendenciasData: (category: string, pendencias: string[]) => void
+  pendenciasData: Record<string, PendenciaItem[]>
+  updatePendenciasData: (category: string, pendencias: PendenciaItem[]) => void
   openReportModal: (category: string) => void
-  openLiberarPendenciaModal: (category: string, description: string) => void
+  openLiberarPendenciaModal: (category: string, description: string, frota: string) => void
 }
 
 const PendenciasContext = React.createContext<PendenciasContextType | undefined>(undefined)
@@ -106,42 +121,59 @@ export default function TrocaDeTurno() {
   const [reportType, setReportType] = useState<string>("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("")
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
-  const [pendenciasData, setPendenciasData] = useState<Record<string, string[]>>({
-    "veiculos-logistica": ["Veículo L-001 com problema no freio", "Veículo L-003 necessita troca de óleo"],
-    "caminhoes-pipas": ["Caminhão P-002 com vazamento no tanque", "Caminhão P-005 com problema na bomba"],
-    "caminhoes-munck": ["Munck M-001 com problema no sistema hidráulico"],
+  const [pendenciasData, setPendenciasData] = useState<Record<string, PendenciaItem[]>>({
+    "veiculos-logistica": [
+      { description: "Veículo L-001 com problema no freio", frota: "L-001" },
+      { description: "Veículo L-003 necessita troca de óleo", frota: "L-003" },
+    ],
+    "caminhoes-pipas": [
+      { description: "Caminhão P-002 com vazamento no tanque", frota: "P-002" },
+      { description: "Caminhão P-005 com problema na bomba", frota: "P-005" },
+    ],
+    "caminhoes-munck": [{ description: "Munck M-001 com problema no sistema hidráulico", frota: "M-001" }],
     "caminhoes-coletas": [
-      "Caminhão C-001 com problema na compactação",
-      "Caminhão C-003 necessita manutenção hidráulica",
+      { description: "Caminhão C-001 com problema na compactação", frota: "C-001" },
+      { description: "Caminhão C-003 necessita manutenção hidráulica", frota: "C-003" },
     ],
     "carretas-pranchas-ls-outros": [
-      "Carreta CR-001 com problema na suspensão",
-      "Prancha PR-002 necessita manutenção no sistema hidráulico",
-      "LS-003 com problema no engate",
+      { description: "Carreta CR-001 com problema na suspensão", frota: "CR-001" },
+      { description: "Prancha PR-002 necessita manutenção no sistema hidráulico", frota: "PR-002" },
+      { description: "LS-003 com problema no engate", frota: "LS-003" },
     ],
-    "caminhoes-prancha-vinhaca-muda": ["Prancha PR-003 com problema na suspensão"],
-    "caminhoes-cacambas": ["Caçamba C-002 com problema na tampa traseira"],
-    "trator-reboque": ["Trator TR-001 com problema no motor", "Reboque RB-002 necessita manutenção nos freios"],
-    "area-de-vivencias": ["Área A-001 necessita manutenção no ar condicionado"],
-    "carretinhas-rtk": ["Carretinha RTK-005 com problema na antena"],
-    "tanques-e-dolly": ["Tanque T-003 com vazamento", "Dolly D-001 com problema no engate"],
-    "carretas-canavieira": ["Carreta CAN-007 com problema na suspensão"],
+    "caminhoes-prancha-vinhaca-muda": [{ description: "Prancha PR-003 com problema na suspensão", frota: "PR-003" }],
+    "caminhoes-cacambas": [{ description: "Caçamba C-002 com problema na tampa traseira", frota: "C-002" }],
+    "trator-reboque": [
+      { description: "Trator TR-001 com problema no motor", frota: "TR-001" },
+      { description: "Reboque RB-002 necessita manutenção nos freios", frota: "RB-002" },
+    ],
+    "area-de-vivencias": [{ description: "Área A-001 necessita manutenção no ar condicionado", frota: "A-001" }],
+    "carretinhas-rtk": [{ description: "Carretinha RTK-005 com problema na antena", frota: "RTK-005" }],
+    "tanques-e-dolly": [
+      { description: "Tanque T-003 com vazamento", frota: "T-003" },
+      { description: "Dolly D-001 com problema no engate", frota: "D-001" },
+    ],
+    "carretas-canavieira": [{ description: "Carreta CAN-007 com problema na suspensão", frota: "CAN-007" }],
   })
   const [isSaving, setIsSaving] = useState(false)
   const [isSyncingDatabase, setIsSyncingDatabase] = useState(false)
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null)
   const [databaseError, setDatabaseError] = useState<string | null>(null)
+  const [deleteAllModalOpen, setDeleteAllModalOpen] = useState(false)
 
   // Estado para o modal de liberação de pendência
   const [liberarPendenciaProps, setLiberarPendenciaProps] = useState<{
     isOpen: boolean
     category: string
     description: string
+    frota: string
   }>({
     isOpen: false,
     category: "",
     description: "",
+    frota: "",
   })
+
+  const [extractedSchedule, setExtractedSchedule] = useState<{ frota: string; horario: string }[]>([])
 
   // Function to load all data from Supabase
   const loadAllDataFromDatabase = async () => {
@@ -236,7 +268,7 @@ export default function TrocaDeTurno() {
       "veiculos-leves": "Veículos Leves",
       "carga-seca": "Carga Seca",
       "caminhao-pipa": "Caminhão Pipa",
-      "caminhao-cavalos": "Caminhão Cavalos",
+      "caminhao-cavalos": "Carga Seca",
       "caminhao-munck": "Caminhão Munck",
       "caminhao-cacamba": "Caminhão Caçamba",
       "caminhao-pranchas": "Caminhão Pranchas",
@@ -273,7 +305,8 @@ export default function TrocaDeTurno() {
                     >
                       <div className="flex items-start">
                         <div className="mt-1 mr-2 h-2 w-2 rounded-full bg-green-500 flex-shrink-0"></div>
-                        <span>{item}</span>
+                        <span>{item.description}</span>
+                        {item.frota && <span className="ml-2 text-xs text-slate-400">({item.frota})</span>}
                       </div>
                     </li>
                   ))}
@@ -307,7 +340,8 @@ export default function TrocaDeTurno() {
                   >
                     <div className="flex items-start">
                       <div className="mt-1 mr-2 h-2 w-2 rounded-full bg-green-500 flex-shrink-0"></div>
-                      <span>{item}</span>
+                      <span>{item.description}</span>
+                      {item.frota && <span className="ml-2 text-xs text-slate-400">({item.frota})</span>}
                     </div>
                   </li>
                 ))}
@@ -348,12 +382,78 @@ export default function TrocaDeTurno() {
     })
   }
 
-  // Open liberar pendência modal
-  const openLiberarPendenciaModal = (category: string, description: string) => {
+  // Atualizar a função handleAddPendenciaFromRecent no componente TrocaDeTurno
+  // Adicione esta função dentro do componente TrocaDeTurno antes do return
+
+  const handleAddPendenciaFromRecent = (category: string, description: string, frota: string, priority: string) => {
+    try {
+      // Criar uma nova pendência para a seção de Pendências Oficina
+      const newPendenciaItem = {
+        description: description,
+        frota: frota,
+        priority: priority as "baixa" | "media" | "alta" | "urgente",
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      }
+
+      // Obter as pendências atuais da categoria
+      const currentPendencias = pendenciasData[category] || []
+
+      // Verificar se já existe uma pendência com a mesma descrição e frota
+      const existingIndex = currentPendencias.findIndex((p) => p.description === description && p.frota === frota)
+
+      if (existingIndex >= 0) {
+        // Atualizar a pendência existente
+        const updatedPendencias = [...currentPendencias]
+        updatedPendencias[existingIndex] = newPendenciaItem
+
+        // Atualizar o estado
+        setPendenciasData((prev) => ({
+          ...prev,
+          [category]: updatedPendencias,
+        }))
+      } else {
+        // Adicionar nova pendência
+        const updatedPendencias = [...currentPendencias, newPendenciaItem]
+
+        // Atualizar o estado
+        setPendenciasData((prev) => ({
+          ...prev,
+          [category]: updatedPendencias,
+        }))
+      }
+
+      // Mostrar notificação de sucesso
+      toast({
+        title: "Pendência sincronizada",
+        description: `A pendência foi adicionada à categoria ${getCategoryName(category)}.`,
+      })
+    } catch (error) {
+      console.error("Erro ao sincronizar pendência:", error)
+      toast({
+        title: "Erro de sincronização",
+        description: "Não foi possível adicionar a pendência à categoria correspondente.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Atualizar a função openLiberarPendenciaModal para incluir o parâmetro frota
+  const openLiberarPendenciaModal = (category: string, description: string, frota = "") => {
     setLiberarPendenciaProps({
       isOpen: true,
       category,
       description,
+      frota,
+    })
+  }
+
+  // Open liberar pendência modal
+  const openLiberarPendenciaModalOld = (category: string, description: string) => {
+    setLiberarPendenciaProps({
+      isOpen: true,
+      category,
+      description,
+      frota: "",
     })
   }
 
@@ -372,8 +472,26 @@ export default function TrocaDeTurno() {
     })
   }
 
+  // Handle success after deleting all pendências
+  const handleDeleteAllSuccess = () => {
+    // Recarregar os dados do banco de dados
+    loadAllDataFromDatabase().catch((err) => {
+      console.error("Failed to reload data after deletion:", err)
+      setDatabaseError("Falha ao atualizar dados após exclusão. Tente sincronizar manualmente.")
+    })
+
+    // Limpar os dados locais
+    setPendenciasData({})
+
+    // Exibir mensagem de sucesso
+    toast({
+      title: "Todas as pendências excluídas",
+      description: "Todas as pendências foram excluídas com sucesso do banco de dados.",
+    })
+  }
+
   // Update pendencias data
-  const updatePendenciasData = (category: string, pendencias: string[]) => {
+  const updatePendenciasData = (category: string, pendencias: PendenciaItem[]) => {
     setPendenciasData((prev) => ({
       ...prev,
       [category]: pendencias,
@@ -398,8 +516,11 @@ export default function TrocaDeTurno() {
 
   // Vehicle management functions
   const addVehicle = () => {
+    // Create a new unique ID
+    const uniqueId = crypto.randomUUID()
+
     setEditingVehicle({
-      id: "", // ID vazio para indicar novo veículo
+      id: uniqueId, // Use the generated unique ID
       frota: "",
       categoria: activeVehicleCategory,
       placa: "",
@@ -441,14 +562,17 @@ export default function TrocaDeTurno() {
       // Simulando salvamento
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
+      // Make sure we have a valid ID - use the one from the form or generate a new unique one
       const savedVehicle = {
         ...vehicle,
-        id: vehicle.id || Math.random().toString(36).substring(2, 9),
+        id: vehicle.id || crypto.randomUUID(),
       }
 
       if (veiculosLogistica.some((v) => v.id === vehicle.id)) {
+        // Update existing vehicle
         setVeiculosLogistica(veiculosLogistica.map((v) => (v.id === vehicle.id ? savedVehicle : v)))
       } else {
+        // Add new vehicle
         setVeiculosLogistica([...veiculosLogistica, savedVehicle])
       }
 
@@ -484,7 +608,7 @@ export default function TrocaDeTurno() {
     { id: "veiculos-leves", label: "Veículos Leves", icon: Car },
     { id: "carga-seca", label: "Carga Seca", icon: Package },
     { id: "caminhao-pipa", label: "Caminhão Pipa", icon: Droplets },
-    { id: "caminhao-cavalos", label: "Caminhão Cavalos", icon: Tractor },
+    { id: "caminhao-cavalos", label: "Carga Seca", icon: Tractor },
     { id: "caminhao-munck", label: "Caminhão Munck", icon: Construction },
     { id: "caminhao-cacamba", label: "Caminhão Caçamba", icon: Loader },
     { id: "caminhao-pranchas", label: "Caminhão Pranchas", icon: Truck },
@@ -661,9 +785,12 @@ export default function TrocaDeTurno() {
       case "pendencias":
         return (
           <div className="space-y-6">
+            <PendenciasDashboard pendenciasData={pendenciasData} />
+
             <PendenciasRecentes
               onViewCategory={handleViewCategory}
               onGenerateReport={(category) => openReportModal(category)}
+              onAddPendencia={handleAddPendenciaFromRecent}
             />
 
             <Card className="bg-slate-900/50 border-slate-700/50 backdrop-blur-sm futuristic-card">
@@ -722,6 +849,13 @@ export default function TrocaDeTurno() {
                     className="bg-slate-800 hover:bg-slate-700"
                   >
                     <Eye className="h-4 w-4 mr-2" /> Ver Relatório Completo
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setDeleteAllModalOpen(true)}
+                    className="bg-red-900/30 text-red-400 hover:bg-red-900/50 border-red-700/50"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Excluir Todas Pendências
                   </Button>
                   {lastSyncTime && (
                     <span className="text-xs text-slate-500">
@@ -993,7 +1127,7 @@ export default function TrocaDeTurno() {
           </Card>
         )
       case "lavagem":
-        return <WashingLubricationControl />
+        return <WashingLubricationControl importedData={extractedSchedule} />
       case "relatorios":
         return (
           <Card className="bg-slate-900/50 border-slate-700/50 backdrop-blur-sm futuristic-card">
@@ -1067,6 +1201,40 @@ export default function TrocaDeTurno() {
     }
   }
 
+  // Atualizar a função handleExtractedData para integrar com o controle de lavagem
+  const handleExtractedData = async (data: { frota: string; horario: string }[]) => {
+    try {
+      // Preparar dados para o formato esperado pelo controle de lavagem
+      const washingControlData = data.map((item) => ({
+        frota: item.frota,
+        local: "LAVADOR",
+        tipo_preventiva: "lavagem_lubrificacao",
+        data_programada: format(new Date(), "yyyy-MM-dd"),
+        situacao: "PENDENTE" as const,
+        horario_agendado: item.horario,
+        observacao: "Importado via extração automática",
+      }))
+
+      // Salvar dados extraídos
+      setExtractedSchedule(data)
+
+      // Mudar para a aba de lavagem para mostrar os dados importados
+      setActiveTab("lavagem")
+
+      toast({
+        title: "Dados importados com sucesso",
+        description: `${data.length} agendamentos foram adicionados ao Controle de Lavagem e Lubrificação.`,
+      })
+    } catch (error) {
+      console.error("Error handling extracted data:", error)
+      toast({
+        title: "Erro ao processar dados",
+        description: "Não foi possível processar os dados extraídos.",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <FuturisticLayout theme={theme} toggleTheme={toggleTheme} activeTab={activeTab} setActiveTab={setActiveTab}>
       <NotificationProvider>
@@ -1088,7 +1256,10 @@ export default function TrocaDeTurno() {
 
         <div className="relative">
           <ParticleBackground />
-          <div className="relative z-10 futuristic-grid">{renderContent()}</div>
+          <div className="relative z-10 futuristic-grid">
+            {renderContent()}
+            // Remove the component
+          </div>
         </div>
 
         {/* Report Modal */}
@@ -1145,10 +1316,17 @@ export default function TrocaDeTurno() {
         {/* Modal de Liberação de Pendência */}
         <LiberarPendenciaModal
           isOpen={liberarPendenciaProps.isOpen}
-          onClose={() => setLiberarPendenciaProps({ isOpen: false, category: "", description: "" })}
+          onClose={() => setLiberarPendenciaProps({ isOpen: false, category: "", description: "", frota: "" })}
           category={liberarPendenciaProps.category}
           description={liberarPendenciaProps.description}
           onSuccess={handleLiberacaoSuccess}
+        />
+
+        {/* Modal para excluir todas as pendências */}
+        <DeleteAllPendenciasModal
+          isOpen={deleteAllModalOpen}
+          onClose={() => setDeleteAllModalOpen(false)}
+          onSuccess={handleDeleteAllSuccess}
         />
       </NotificationProvider>
     </FuturisticLayout>

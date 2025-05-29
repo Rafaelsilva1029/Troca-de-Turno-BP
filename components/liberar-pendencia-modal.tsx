@@ -25,7 +25,23 @@ interface LiberarPendenciaModalProps {
   onClose: () => void
   category: string
   description: string
+  frota: string
   onSuccess?: () => void
+}
+
+const getCategoryColor = (slug: string) => {
+  const colors: Record<string, string> = {
+    "veiculos-logistica": "bg-green-400 text-white",
+    "caminhoes-pipas": "bg-blue-400 text-white",
+    "caminhoes-munck": "bg-yellow-400 text-white",
+    "caminhoes-prancha-vinhaca-muda": "bg-red-400 text-white",
+    "caminhoes-cacambas": "bg-purple-400 text-white",
+    "area-de-vivencias": "bg-pink-400 text-white",
+    "carretinhas-rtk": "bg-orange-400 text-white",
+    "tanques-e-dolly": "bg-teal-400 text-white",
+    "carretas-canavieira": "bg-gray-400 text-white",
+  }
+  return colors[slug] || "bg-slate-700 text-white"
 }
 
 export function LiberarPendenciaModal({
@@ -33,6 +49,7 @@ export function LiberarPendenciaModal({
   onClose,
   category,
   description,
+  frota,
   onSuccess,
 }: LiberarPendenciaModalProps) {
   const { toast } = useToast()
@@ -137,12 +154,18 @@ export function LiberarPendenciaModal({
         <div className="space-y-4">
           {/* Informações da pendência */}
           <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
-            <div className="flex items-center justify-between mb-2">
-              <Badge variant="outline" className="bg-slate-700/50 text-green-400 border-green-500/50">
+            <div className="text-sm font-medium text-slate-300 mb-2">Pendência:</div>
+            <div className="text-sm text-slate-400">{description}</div>
+            {frota && (
+              <div className="text-sm text-slate-400 mt-1">
+                <span className="text-slate-500">Frota:</span> {frota}
+              </div>
+            )}
+            <div className="flex gap-2 mt-2">
+              <Badge variant="outline" className={`text-xs ${getCategoryColor(category)}`}>
                 {getCategoryName(category)}
               </Badge>
             </div>
-            <p className="text-sm text-slate-300 leading-relaxed">{description}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">

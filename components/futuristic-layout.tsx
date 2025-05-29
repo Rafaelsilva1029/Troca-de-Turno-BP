@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { EnhancedSidebar } from "@/components/enhanced-sidebar"
 import { FuturisticHeader } from "@/components/futuristic-header"
@@ -90,3 +89,6 @@ export function FuturisticLayout({ children, theme, toggleTheme, activeTab, setA
     </div>
   )
 }
+
+// Adicionar exportação padrão para compatibilidade
+export default FuturisticLayout

@@ -67,7 +67,7 @@ export function VehicleDialog({ isOpen, onClose, vehicle, onSave }: VehicleDialo
       setFormData(vehicle)
     } else {
       setFormData({
-        id: "",
+        id: crypto.randomUUID(), // Gerar ID único para novos veículos
         frota: "",
         categoria: "veiculos-leves",
         placa: "",

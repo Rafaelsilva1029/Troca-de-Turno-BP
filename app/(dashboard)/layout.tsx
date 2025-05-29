@@ -1,54 +1,77 @@
+"use client"
+
 import type React from "react"
-import type { Metadata } from "next"
-import { redirect } from "next/navigation"
-import { getCurrentUser } from "@/lib/auth"
-import { DashboardHeader } from "@/components/dashboard/header"
-import { DashboardSidebar } from "@/components/dashboard/sidebar"
+import { useState } from "react"
+import { ResponsiveHeader } from "@/components/dashboard/responsive-header"
 import { ThemeProvider } from "@/components/theme-provider"
 import { NotificationProvider } from "@/components/notification-manager"
 import { AudioProvider } from "@/lib/audio-service"
 import { Toaster } from "@/components/ui/toaster"
 import { ParticleBackground } from "@/components/particle-background"
+import { useDeviceType } from "@/hooks/use-device-type"
+import { cn } from "@/lib/utils"
 
-export const metadata: Metadata = {
-  title: "Dashboard | Branco Peres Agribusiness",
-  description: "Painel de controle do sistema de gestão Branco Peres Agribusiness",
+// Importar a nova sidebar organizada
+import { OrganizedSidebar } from "@/components/dashboard/organized-sidebar"
+
+interface DashboardLayoutProps {
+  children: React.ReactNode
 }
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  // Verificar se o usuário está autenticado
-  const user = await getCurrentUser()
+function DashboardLayoutContent({ children }: DashboardLayoutProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const deviceType = useDeviceType()
 
-  // Se não estiver autenticado, redirecionar para o login
-  if (!user) {
-    redirect("/login?redirectTo=/dashboard")
+  // Simular usuário para demonstração - em produção, usar getCurrentUser()
+  const user = {
+    id: "1",
+    name: "João Silva",
+    email: "joao@brancoperes.com",
+    role: "admin" as const,
   }
 
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen)
+  }
+
+  // Calcular margem do conteúdo principal baseado no dispositivo
+  const getMainContentMargin = () => {
+    switch (deviceType) {
+      case "mobile":
+      case "tablet":
+        return "ml-0" // Sem margem, sidebar é overlay
+      case "desktop":
+        return sidebarOpen ? "ml-[250px]" : "ml-[70px]" // Margem baseada no estado da sidebar
+      default:
+        return "ml-[250px]"
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-black to-slate-900 text-slate-100 relative overflow-hidden">
+      <ParticleBackground />
+
+      {/* Sidebar */}
+      <OrganizedSidebar user={user} isOpen={sidebarOpen} onToggle={toggleSidebar} />
+
+      {/* Main content */}
+      <div className={cn("min-h-screen transition-all duration-300 ease-in-out", getMainContentMargin())}>
+        <ResponsiveHeader user={user} onMenuToggle={toggleSidebar} sidebarOpen={sidebarOpen} />
+
+        <main className="p-4 md:p-6">{children}</main>
+      </div>
+
+      <Toaster />
+    </div>
+  )
+}
+
+export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <ThemeProvider attribute="class" defaultTheme="dark">
       <AudioProvider>
         <NotificationProvider>
-          <div className="min-h-screen bg-gradient-to-br from-black to-slate-900 text-slate-100 relative overflow-hidden">
-            <ParticleBackground />
-
-            <div className="flex h-screen overflow-hidden">
-              {/* Sidebar */}
-              <DashboardSidebar user={user} />
-
-              {/* Main content */}
-              <div className="flex-1 flex flex-col overflow-hidden">
-                <DashboardHeader user={user} />
-
-                <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
-              </div>
-            </div>
-
-            <Toaster />
-          </div>
+          <DashboardLayoutContent>{children}</DashboardLayoutContent>
         </NotificationProvider>
       </AudioProvider>
     </ThemeProvider>

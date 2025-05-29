@@ -53,6 +53,14 @@ export type VeiculoLogistica = {
   status: string
   created_at: string
   updated_at: string
+  categoria?: string
+  placa?: string
+  modelo?: string
+  ano?: string
+  ultima_manutencao?: string
+  proxima_manutencao?: string
+  motorista?: string
+  observacoes?: string
 }
 
 // Tipo para as métricas do sistema
@@ -96,6 +104,21 @@ export async function savePendencias(category: string, items: string[]) {
       const { error: insertError } = await supabase.from("pendencias").insert(pendenciasToInsert)
       if (insertError) throw insertError
     }
+  }
+
+  return true
+}
+
+// Nova função para excluir todas as pendências
+export async function deleteAllPendencias() {
+  const supabase = getSupabaseClient()
+
+  // Excluir todas as pendências da tabela
+  const { error } = await supabase.from("pendencias").delete().neq("id", 0)
+
+  if (error) {
+    console.error("Erro ao excluir todas as pendências:", error)
+    throw error
   }
 
   return true
@@ -210,8 +233,6 @@ export async function saveProgramacaoTurno(items: { id: string; content: string 
 
 // Funções para veículos logística (versão completa)
 // Atualizar as funções de veículos para usar a estrutura atual da tabela
-// Substituir as funções fetchVeiculosLogistica, saveVeiculoLogistica, deleteVeiculoLogistica e saveVeiculosLogistica
-
 export async function fetchVeiculosLogistica() {
   const supabase = getSupabaseClient()
   const { data, error } = await supabase.from("veiculos_logistica").select("*").order("frota", { ascending: true })
@@ -225,26 +246,35 @@ export async function fetchVeiculosLogistica() {
   return (data || []).map((veiculo: any) => ({
     id: veiculo.id?.toString() || Date.now().toString(),
     frota: veiculo.frota || "",
-    categoria: "veiculos-leves", // Valor padrão já que a coluna não existe
-    placa: "", // Valor padrão já que a coluna não existe
-    modelo: "", // Valor padrão já que a coluna não existe
-    ano: "2020", // Valor padrão já que a coluna não existe
+    categoria: veiculo.categoria || "veiculos-leves",
+    placa: veiculo.placa || "",
+    modelo: veiculo.modelo || "",
+    ano: veiculo.ano || "",
     status: veiculo.status || "Operacional",
-    ultimaManutencao: undefined,
-    proximaManutencao: undefined,
-    motorista: undefined,
-    observacoes: undefined,
+    ultimaManutencao: veiculo.ultima_manutencao,
+    proximaManutencao: veiculo.proxima_manutencao,
+    motorista: veiculo.motorista,
+    observacoes: veiculo.observacoes,
   }))
 }
 
 export async function saveVeiculoLogistica(veiculo: any) {
   const supabase = getSupabaseClient()
 
-  // Usar apenas os campos que existem na tabela atual
+  // Usar a frota como item_id para garantir consistência
+  // Importante: isso garante que podemos identificar cada veículo de forma única
   const veiculoToSave = {
     item_id: veiculo.frota, // Usar a frota como item_id
     frota: veiculo.frota,
     status: veiculo.status,
+    categoria: veiculo.categoria,
+    placa: veiculo.placa || "",
+    modelo: veiculo.modelo || "",
+    ano: veiculo.ano || "",
+    ultima_manutencao: veiculo.ultimaManutencao,
+    proxima_manutencao: veiculo.proximaManutencao,
+    motorista: veiculo.motorista,
+    observacoes: veiculo.observacoes,
     updated_at: new Date().toISOString(),
   }
 
@@ -380,9 +410,17 @@ export async function saveVeiculosLogistica(veiculos: any[]) {
   // Preparar os dados usando apenas os campos que existem na tabela
   const veiculosToSave = veiculos.map((veiculo) => ({
     id: veiculo.id,
-    item_id: veiculo.frota || `veiculo-${veiculo.id}`, // Usar frota como item_id ou gerar um ID único
+    item_id: veiculo.frota, // Usar frota como item_id para consistência
     frota: veiculo.frota,
     status: veiculo.status,
+    categoria: veiculo.categoria,
+    placa: veiculo.placa || "",
+    modelo: veiculo.modelo || "",
+    ano: veiculo.ano || "",
+    ultima_manutencao: veiculo.ultimaManutencao,
+    proxima_manutencao: veiculo.proximaManutencao,
+    motorista: veiculo.motorista,
+    observacoes: veiculo.observacoes,
     updated_at: new Date().toISOString(),
     created_at: veiculo.created_at || new Date().toISOString(),
   }))

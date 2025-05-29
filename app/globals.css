@@ -10,19 +10,19 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
+    --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
+    --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
+    --muted: 210 40% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
+    --accent: 210 40% 96%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
 
     /* Chart colors */
@@ -53,7 +53,7 @@
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
+    --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
@@ -65,17 +65,7 @@
     --destructive-foreground: 210 40% 98%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
-
-    /* Sidebar colors */
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 0 0% 98%;
-    --sidebar-primary-foreground: 240 5.9% 10%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
 
@@ -86,6 +76,119 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Responsividade específica para sidebar */
+@layer components {
+  /* Mobile (< 768px) */
+  @media (max-width: 767px) {
+    .sidebar-responsive {
+      width: 280px;
+      transform: translateX(-100%);
+      transition: transform 0.3s ease-in-out;
+    }
+
+    .sidebar-responsive.open {
+      transform: translateX(0);
+    }
+
+    .main-content-responsive {
+      margin-left: 0;
+      padding: 1rem;
+    }
+
+    .header-responsive {
+      padding: 0.75rem 1rem;
+    }
+
+    .nav-item-mobile {
+      padding: 0.75rem 1rem;
+      font-size: 0.875rem;
+    }
+  }
+
+  /* Tablet (768px - 1023px) */
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .sidebar-responsive {
+      width: 240px;
+      transform: translateX(-100%);
+      transition: transform 0.3s ease-in-out;
+    }
+
+    .sidebar-responsive.open {
+      transform: translateX(0);
+    }
+
+    .main-content-responsive {
+      margin-left: 0;
+      padding: 1.5rem;
+    }
+
+    .header-responsive {
+      padding: 1rem 1.5rem;
+    }
+
+    .nav-item-tablet {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+    }
+  }
+
+  /* Desktop (>= 1024px) */
+  @media (min-width: 1024px) {
+    .sidebar-responsive {
+      width: 250px;
+      transform: translateX(0);
+      transition: width 0.3s ease-in-out;
+    }
+
+    .sidebar-responsive.collapsed {
+      width: 70px;
+    }
+
+    .main-content-responsive {
+      margin-left: 250px;
+      padding: 1.5rem;
+      transition: margin-left 0.3s ease-in-out;
+    }
+
+    .main-content-responsive.sidebar-collapsed {
+      margin-left: 70px;
+    }
+
+    .header-responsive {
+      padding: 1rem 1.5rem;
+    }
+
+    .nav-item-desktop {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+    }
+  }
+}
+
+/* Garantir que não há sidebars duplicadas */
+[data-sidebar]:not([data-sidebar="main"]) {
+  display: none !important;
+}
+
+/* Animações suaves */
+.sidebar-transition {
+  transition: all 0.3s ease-in-out;
+}
+
+/* Overlay para mobile/tablet */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 40;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.sidebar-overlay.visible {
+  opacity: 1;
 }
 
 /* Estilos para a barra de rolagem */
@@ -340,4 +443,34 @@
 .futuristic-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3), 0 0 10px rgba(34, 197, 94, 0.3);
+}
+
+/* Melhorias de acessibilidade */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-transition,
+  .sidebar-responsive,
+  .main-content-responsive {
+    transition: none;
+  }
+
+  .animate-fadeIn,
+  .animate-slideInFromLeft,
+  .animate-slideInFromRight,
+  .animate-slideInFromTop,
+  .animate-slideInFromBottom {
+    animation: none;
+  }
+}
+
+/* Focus states melhorados */
+.nav-item:focus-visible {
+  outline: 2px solid rgba(34, 197, 94, 0.8);
+  outline-offset: 2px;
+}
+
+/* Estados de hover melhorados para touch devices */
+@media (hover: hover) {
+  .nav-item:hover {
+    background-color: rgba(30, 41, 59, 0.5);
+  }
 }

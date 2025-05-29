@@ -17,7 +17,7 @@ import {
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { format } from "date-fns"
+import { format, isValid, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
   AlertCircle,
@@ -42,6 +42,7 @@ import {
   Copy,
   Upload,
   Download,
+  Brain,
 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -49,7 +50,7 @@ import { toast } from "@/components/ui/use-toast"
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
 import * as XLSX from "xlsx"
-import { getSupabaseClient } from "@/lib/supabase"
+import { getSupabaseClient } from "@/lib/supabase-client"
 import {
   BarChart,
   Bar,
@@ -63,7 +64,8 @@ import {
   Pie,
   Cell,
 } from "recharts"
-import { ImportMaintenanceData } from "@/components/import-maintenance-data"
+import { MultiFormatExtractor } from "@/components/multi-format-extractor-embedded"
+import { UltraAdvancedAIExtractor } from "@/components/ultra-advanced-ai-extractor"
 
 // Tipos
 interface MaintenanceRecord {
@@ -78,6 +80,14 @@ interface MaintenanceRecord {
   observacao?: string
   created_at?: string
   updated_at?: string
+}
+
+// Adicionar propriedade para receber dados importados
+interface WashingLubricationControlProps {
+  importedData?: Array<{
+    frota: string
+    horario: string
+  }>
 }
 
 const tiposPreventiva = [
@@ -96,62 +106,36 @@ const locais = [
   { value: "PATIO", label: "PÁTIO" },
 ]
 
-// Dados de exemplo para inicialização
-const dadosExemplo: MaintenanceRecord[] = [
-  {
-    id: 1,
-    frota: "6597",
-    local: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-01-26",
-    situacao: "PENDENTE",
-    horario_agendado: "04:00",
-    observacao: "TROCA DE ÓLEO",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    frota: "8805",
-    local: "LAVADOR",
-    tipo_preventiva: "lavagem_lubrificacao",
-    data_programada: "2025-01-27",
-    situacao: "PENDENTE",
-    horario_agendado: "08:00",
-    observacao: "EM VIAGEM",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    frota: "4597",
-    local: "LUBRIFICADOR",
-    tipo_preventiva: "lubrificacao",
-    data_programada: "2025-01-28",
-    situacao: "EM_ANDAMENTO",
-    horario_agendado: "14:30",
-    observacao: "Aguardando peças",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 4,
-    frota: "6602",
-    local: "MECANICO",
-    tipo_preventiva: "troca_oleo",
-    data_programada: "2025-01-25",
-    data_realizada: "2025-01-25",
-    situacao: "ENCERRADO",
-    horario_agendado: "02:00",
-    observacao: "Concluído com sucesso",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-]
+// Função auxiliar para formatar data com segurança
+const formatDateSafe = (dateString: string | undefined | null, formatStr = "dd/MM/yyyy"): string => {
+  if (!dateString) return ""
+  try {
+    // Verificar se a string é válida antes de tentar analisar
+    if (typeof dateString !== "string" || dateString.trim() === "") {
+      return ""
+    }
 
-export function WashingLubricationControl() {
+    // Tentar analisar a data
+    const date = parseISO(dateString)
+
+    // Verificar se a data é válida
+    if (!isValid(date)) {
+      return ""
+    }
+
+    return format(date, formatStr)
+  } catch (error) {
+    console.error("Erro ao formatar data:", error, dateString)
+    return ""
+  }
+}
+
+// Dados de exemplo para inicialização
+const dadosExemplo: MaintenanceRecord[] = []
+
+export function WashingLubricationControl({ importedData }: WashingLubricationControlProps = {}) {
   // Estados principais
-  const [registros, setRegistros] = useState<MaintenanceRecord[]>(dadosExemplo)
+  const [registros, setRegistros] = useState<MaintenanceRecord[]>([])
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [bdConectado, setBdConectado] = useState(false)
@@ -194,6 +178,47 @@ export function WashingLubricationControl() {
   useEffect(() => {
     tentarConectarBanco()
   }, [])
+
+  // Adicionar useEffect para processar dados importados
+  useEffect(() => {
+    if (importedData && importedData.length > 0) {
+      const processarDadosImportados = async () => {
+        try {
+          setCarregando(true)
+
+          // Preparar registros para importação
+          const novosRegistros = importedData.map((item, index) => ({
+            frota: item.frota,
+            local: "LAVADOR",
+            tipo_preventiva: "lavagem_lubrificacao",
+            data_programada: format(new Date(), "yyyy-MM-dd"),
+            situacao: "PENDENTE" as const,
+            horario_agendado: item.horario,
+            observacao: "Importado via extração automática",
+          }))
+
+          // Usar a função existente para importar registros
+          await importarRegistros(novosRegistros)
+
+          toast({
+            title: "Dados importados",
+            description: `${importedData.length} registros foram importados com sucesso para o banco de dados.`,
+          })
+        } catch (error) {
+          console.error("Erro ao processar dados importados:", error)
+          toast({
+            title: "Erro",
+            description: "Erro ao processar dados importados",
+            variant: "destructive",
+          })
+        } finally {
+          setCarregando(false)
+        }
+      }
+
+      processarDadosImportados()
+    }
+  }, [importedData])
 
   // Função para tentar conectar com banco
   const tentarConectarBanco = async () => {
@@ -513,6 +538,44 @@ export function WashingLubricationControl() {
     }
   }
 
+  const limparTodosRegistros = async () => {
+    try {
+      setCarregando(true)
+
+      if (bdConectado) {
+        // Tentar excluir todos os registros do banco de dados
+        try {
+          const supabase = getSupabaseClient()
+          const { error } = await supabase.from("maintenance_records").delete().neq("id", 0)
+
+          if (error) {
+            throw error
+          }
+        } catch (dbError) {
+          console.warn("Erro ao limpar registros no banco:", dbError)
+          throw dbError
+        }
+      }
+
+      // Limpar registros localmente
+      setRegistros([])
+
+      toast({
+        title: "Sucesso",
+        description: `Todos os registros foram excluídos ${bdConectado ? "do banco de dados" : "localmente"}!`,
+      })
+    } catch (error) {
+      const mensagem = error instanceof Error ? error.message : "Erro desconhecido"
+      toast({
+        title: "Erro",
+        description: mensagem,
+        variant: "destructive",
+      })
+    } finally {
+      setCarregando(false)
+    }
+  }
+
   // Função para sincronizar com banco
   const sincronizarBanco = async () => {
     try {
@@ -551,9 +614,6 @@ CREATE TABLE IF NOT EXISTS maintenance_records (
    tipo_preventiva VARCHAR(100) NOT NULL,
    data_programada DATE NOT NULL,
    data_realizada DATE,
-   situacao VARCHAR(  NOT NULL,
-   data_programada DATE NOT NULL,
-   data_realizada DATE,
    situacao VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' CHECK (situacao IN ('PENDENTE', 'ENCERRADO', 'EM_ANDAMENTO')),
    horario_agendado TIME NOT NULL,
    observacao TEXT,
@@ -590,8 +650,8 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
         Frota: registro.frota,
         Local: registro.local,
         "Tipo Preventiva": obterLabelTipo(registro.tipo_preventiva),
-        "Data Programada": format(new Date(registro.data_programada), "dd/MM/yyyy"),
-        "Data Realizada": registro.data_realizada ? format(new Date(registro.data_realizada), "dd/MM/yyyy") : "",
+        "Data Programada": formatDateSafe(registro.data_programada),
+        "Data Realizada": formatDateSafe(registro.data_realizada),
         Situação: registro.situacao === "EM_ANDAMENTO" ? "ANDAMENTO" : registro.situacao,
         "Horário Agendado": registro.horario_agendado,
         Observação: registro.observacao || "",
@@ -766,17 +826,18 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
 
           // Sucesso no banco, usar dados retornados
           setRegistros((prev) => [...data, ...prev])
+          return data
         } catch (dbError) {
           console.warn("Erro no banco, salvando localmente:", dbError)
           // Salvar localmente se houver erro no banco
           setRegistros((prev) => [...registrosCompletos, ...prev])
+          return registrosCompletos
         }
       } else {
         // Salvar localmente
         setRegistros((prev) => [...registrosCompletos, ...prev])
+        return registrosCompletos
       }
-
-      return true
     } catch (error) {
       console.error("Erro ao importar registros:", error)
       throw error
@@ -808,9 +869,18 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
     const correspondeSituacao = filtroSituacao === "todos" || registro.situacao === filtroSituacao
     const correspondeLocal = filtroLocal === "todos" || registro.local === filtroLocal
 
-    const correspondeData =
-      !dataSelecionada ||
-      format(new Date(registro.data_programada), "yyyy-MM-dd") === format(dataSelecionada, "yyyy-MM-dd")
+    let correspondeData = true
+    if (dataSelecionada) {
+      try {
+        if (isValid(dataSelecionada)) {
+          const dataFormatada = format(dataSelecionada, "yyyy-MM-dd")
+          correspondeData = registro.data_programada === dataFormatada
+        }
+      } catch (error) {
+        console.error("Erro ao comparar datas:", error)
+        correspondeData = false
+      }
+    }
 
     return correspondeTermoBusca && correspondeTipo && correspondeSituacao && correspondeLocal && correspondeData
   })
@@ -834,7 +904,7 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
         )
       case "EM_ANDAMENTO":
         return (
-          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-amber-50 to-yellow-100 text-amber-700 border border-amber-200 shadow-sm">
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-amber-50 to yellow-100 text-amber-700 border border-amber-200 shadow-sm">
             <PlayCircle className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
             ANDAMENTO
           </span>
@@ -1015,6 +1085,13 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                 >
                   Dashboard
                 </TabsTrigger>
+                <TabsTrigger
+                  value="ia-extracao"
+                  className="text-white data-[state=active]:bg-[#1e2a38] data-[state=active]:text-white"
+                >
+                  <Brain className="mr-2 h-4 w-4" />
+                  IA Extração
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -1041,7 +1118,7 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="h-9">
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dataSelecionada ? format(dataSelecionada, "dd/MM/yyyy") : "Data"}
+                          {dataSelecionada && isValid(dataSelecionada) ? format(dataSelecionada, "dd/MM/yyyy") : "Data"}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
@@ -1121,6 +1198,23 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                     <Button variant="outline" size="sm" className="h-9" onClick={() => setDialogoAdicionar(true)}>
                       <Plus className="mr-2 h-4 w-4" />
                       Adicionar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Tem certeza que deseja excluir TODOS os registros? Esta ação não pode ser desfeita.",
+                          )
+                        ) {
+                          limparTodosRegistros()
+                        }
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Limpar Tudo
                     </Button>
 
                     <Button
@@ -1235,10 +1329,10 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                             {obterLabelTipo(registro.tipo_preventiva)}
                           </td>
                           <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
-                            {format(new Date(registro.data_programada), "dd/MM/yyyy")}
+                            {formatDateSafe(registro.data_programada)}
                           </td>
                           <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
-                            {registro.data_realizada ? format(new Date(registro.data_realizada), "dd/MM/yyyy") : ""}
+                            {formatDateSafe(registro.data_realizada)}
                           </td>
                           <td className="border border-gray-300 px-3 py-2">{renderizarStatus(registro.situacao)}</td>
                           <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
@@ -1412,6 +1506,20 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                   </CardContent>
                 </Card>
               </div>
+            </TabsContent>
+
+            <TabsContent value="ia-extracao" className="p-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-slate-100 flex items-center text-base font-semibold tracking-wide">
+                    <Brain className="mr-2 h-5 w-5 text-green-500" />
+                    IA Ultra-Avançada de Extração
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <UltraAdvancedAIExtractor />
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </CardContent>
@@ -1763,12 +1871,84 @@ VALUES
         </DialogContent>
       </Dialog>
 
-      {/* Componente de importação */}
-      <ImportMaintenanceData
-        isOpen={dialogoImportar}
-        onClose={() => setDialogoImportar(false)}
-        onImport={importarRegistros}
-      />
+      {/* Dialog para importar dados - ATUALIZADO COM MULTI-FORMATO */}
+      <Dialog open={dialogoImportar} onOpenChange={setDialogoImportar}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Importar Dados de Manutenção - Sistema Avançado</DialogTitle>
+            <DialogDescription>
+              Use o extrator multi-formato para importar dados de Excel, PDF ou imagens
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
+            <MultiFormatExtractor
+              onDataExtracted={async (data) => {
+                try {
+                  // Converter dados extraídos para o formato esperado
+                  const registrosParaImportar = data.map((item) => {
+                    // Garantir que o horário esteja no formato correto (HH:MM)
+                    let horario = item.horario.trim()
+
+                    // Validar formato de horário
+                    if (!/^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(horario)) {
+                      // Se não for um horário válido, usar um valor padrão
+                      horario = "08:00"
+                    } else {
+                      // Se tiver segundos, remover
+                      horario = horario.replace(/:\d{2}$/, "")
+
+                      // Se o horário tiver apenas um dígito na hora, adicionar zero à esquerda
+                      if (/^[0-9]:[0-5][0-9]$/.test(horario)) {
+                        horario = `0${horario}`
+                      }
+                    }
+
+                    return {
+                      frota: item.frota,
+                      local: "LAVADOR",
+                      tipo_preventiva: "lavagem_lubrificacao",
+                      data_programada: format(new Date(), "yyyy-MM-dd"),
+                      situacao: "PENDENTE" as const,
+                      horario_agendado: horario,
+                      observacao: "",
+                    }
+                  })
+
+                  // Usar a função existente de importação
+                  await importarRegistros(registrosParaImportar)
+                  setDialogoImportar(false)
+
+                  toast({
+                    title: "Importação concluída",
+                    description: `${registrosParaImportar.length} registros importados com sucesso!`,
+                  })
+                } catch (error) {
+                  console.error("Erro ao importar:", error)
+                  toast({
+                    title: "Erro",
+                    description: "Erro ao importar os dados extraídos",
+                    variant: "destructive",
+                  })
+                }
+              }}
+              // Configurações específicas para o contexto
+              defaultOptions={{
+                removeEmptyRows: true,
+                trimWhitespace: true,
+                convertToUppercase: false,
+                validateFormat: true,
+                detectDuplicates: true,
+                sortByTime: true,
+                filterRefeicao: true,
+              }}
+              // Perfil específico para manutenção
+              defaultProfile="agendamento-frota"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+      <UltraAdvancedAIExtractor />
     </div>
   )
 }

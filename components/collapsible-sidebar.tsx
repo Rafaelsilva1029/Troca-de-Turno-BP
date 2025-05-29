@@ -15,6 +15,7 @@ import {
   Activity,
   Sun,
   Moon,
+  MapPin,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -59,6 +60,11 @@ export function CollapsibleSidebar({
     }
   }, [])
 
+  // Adicionar no início do componente
+  if (typeof window !== "undefined" && document.querySelector('[data-sidebar="main"]')) {
+    return null // Evita renderização dupla
+  }
+
   const toggleCollapse = () => {
     setCollapsed(!collapsed)
     if (isMobile) {
@@ -78,6 +84,7 @@ export function CollapsibleSidebar({
   const navItems = [
     { id: "programacao", label: "Programação", icon: Calendar, notifications: 0 },
     { id: "pendencias", label: "Pendências", icon: Tool, notifications: 5 },
+    { id: "equipamentos-localizacao", label: "Equipamentos Localização", icon: MapPin, notifications: 0 }, // Adicionar esta linha
     { id: "veiculos", label: "Veículos", icon: Truck, notifications: 0 },
     { id: "liberados", label: "Liberados", icon: CheckCircle, notifications: 2 },
     { id: "equipe", label: "Equipe", icon: Users, notifications: 0 },
@@ -118,6 +125,7 @@ export function CollapsibleSidebar({
       )}
 
       <Card
+        data-sidebar="collapsible"
         className={cn(
           "bg-slate-900/50 border-slate-700/50 backdrop-blur-sm transition-all duration-300 h-full",
           collapsed && !mobileOpen ? "w-[70px]" : "w-[240px]",

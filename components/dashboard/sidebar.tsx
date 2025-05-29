@@ -17,6 +17,7 @@ import {
   PenToolIcon as Tool,
   Truck,
   Users,
+  MapPin,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -38,6 +39,24 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
     if (savedState !== null) {
       setCollapsed(savedState === "true")
     }
+
+    // Remover sidebars duplicadas
+    const removeDuplicateSidebars = () => {
+      const sidebars = document.querySelectorAll("[data-sidebar]")
+      sidebars.forEach((sidebar, index) => {
+        if (index > 0 && sidebar.getAttribute("data-sidebar") !== "main") {
+          sidebar.remove()
+        }
+      })
+    }
+
+    removeDuplicateSidebars()
+
+    // Observar mudanças no DOM para remover sidebars que possam ser adicionadas dinamicamente
+    const observer = new MutationObserver(removeDuplicateSidebars)
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    return () => observer.disconnect()
   }, [])
 
   // Salvar preferência do usuário
@@ -45,6 +64,16 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
     const newState = !collapsed
     setCollapsed(newState)
     localStorage.setItem("sidebarCollapsed", String(newState))
+
+    // Atualizar margem do conteúdo principal
+    const mainContent = document.querySelector(".main-content-with-sidebar")
+    if (mainContent) {
+      if (newState) {
+        mainContent.classList.add("collapsed")
+      } else {
+        mainContent.classList.remove("collapsed")
+      }
+    }
   }
 
   // Verificar se o usuário tem permissão para acessar uma rota
@@ -98,6 +127,12 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
       requiredRole: "viewer",
     },
     {
+      href: "/dashboard/equipamentos-localizacao",
+      label: "Equipamentos Localização",
+      icon: MapPin,
+      requiredRole: "viewer",
+    },
+    {
       href: "/dashboard/programacao",
       label: "Programação do Turno",
       icon: Calendar,
@@ -125,13 +160,16 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
 
   return (
     <aside
+      data-sidebar="main"
       className={cn(
-        "bg-slate-900 border-r border-slate-700/50 h-screen flex flex-col transition-all duration-300",
+        "bg-slate-900 border-r border-slate-700/50 h-screen flex flex-col transition-all duration-300 ease-in-out",
+        "fixed left-0 top-0 z-50", // Posicionamento fixo para evitar sobreposição
         collapsed ? "w-[70px]" : "w-[250px]",
       )}
+      style={{ zIndex: 1000 }} // Z-index alto para garantir que fique na frente
     >
       {/* Logo */}
-      <div className="flex flex-col h-24 border-b border-slate-700/50 px-4 py-3">
+      <div className="flex flex-col h-24 border-b border-slate-700/50 px-4 py-3 bg-slate-900">
         <div className="flex items-center justify-center mb-4">
           {!collapsed && (
             <Link href="/dashboard" className="flex items-center gap-2">
@@ -160,7 +198,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2">
+      <nav className="flex-1 overflow-y-auto py-4 px-2 bg-slate-900">
         <ul className="space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href
@@ -193,7 +231,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className={cn("border-t border-slate-700/50 p-4", collapsed ? "text-center" : "")}>
+      <div className={cn("border-t border-slate-700/50 p-4 bg-slate-900", collapsed ? "text-center" : "")}>
         <div className="text-xs text-slate-500">
           {!collapsed && (
             <>
