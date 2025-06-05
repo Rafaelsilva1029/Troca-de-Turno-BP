@@ -1,29 +1,11 @@
-"use client"
-import dynamic from "next/dynamic"
+import type { Metadata } from "next"
+import { EquipamentosLocalizacaoClient } from "./client"
 
-const EquipamentosLocalizacao = dynamic(() => import("@/components/equipamentos-localizacao"), {
-  ssr: false,
-  loading: () => (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-100">Equipamentos Localização</h1>
-        <p className="text-slate-400 mt-2">Carregando...</p>
-      </div>
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-      </div>
-    </div>
-  ),
-})
+export const metadata: Metadata = {
+  title: "Equipamentos Localização | Branco Peres",
+  description: "Gerencie a localização e status dos equipamentos por categoria",
+}
 
 export default function EquipamentosLocalizacaoPage() {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-100">Equipamentos Localização</h1>
-        <p className="text-slate-400 mt-2">Gerencie a localização e status dos equipamentos por categoria</p>
-      </div>
-      <EquipamentosLocalizacao />
-    </div>
-  )
+  return <EquipamentosLocalizacaoClient />
 }

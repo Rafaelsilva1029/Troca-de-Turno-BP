@@ -122,7 +122,7 @@ export function OrganizedSidebar({ user, isOpen = false, onToggle }: OrganizedSi
           requiredRole: "viewer",
         },
         {
-          href: "/dashboard/equipamentos-localizacao",
+          href: "/equipamentos-sistema",
           label: "Equipamentos Localização",
           icon: MapPin,
           requiredRole: "viewer",

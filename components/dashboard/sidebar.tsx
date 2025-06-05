@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import Image from "next/image"
 import {
   Activity,
@@ -31,6 +31,7 @@ interface DashboardSidebarProps {
 
 export function DashboardSidebar({ user }: DashboardSidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
 
   // Verificar preferência do usuário para o estado da barra lateral
@@ -88,6 +89,18 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
     return roleHierarchy[user.role] >= roleHierarchy[requiredRole]
   }
 
+  // Função para navegar com força
+  const handleNavigation = (href: string, label: string) => {
+    console.log(`🔗 Navegando para: ${href} (${label})`)
+
+    if (href === "/equipamentos-localizacao") {
+      // Força navegação para equipamentos localização
+      window.location.href = href
+    } else {
+      router.push(href)
+    }
+  }
+
   // Itens de navegação
   const navItems = [
     {
@@ -127,7 +140,7 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
       requiredRole: "viewer",
     },
     {
-      href: "/dashboard/equipamentos-localizacao",
+      href: "/equipamentos-localizacao",
       label: "Equipamentos Localização",
       icon: MapPin,
       requiredRole: "viewer",
@@ -201,17 +214,19 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
       <nav className="flex-1 overflow-y-auto py-4 px-2 bg-slate-900">
         <ul className="space-y-1">
           {navItems.map((item) => {
-            const isActive = pathname === item.href
+            const isActive =
+              pathname === item.href ||
+              (item.href === "/equipamentos-localizacao" && pathname.includes("equipamentos-localizacao"))
 
             return (
               <li key={item.href}>
                 <TooltipProvider delayDuration={0}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Link
-                        href={item.href}
+                      <button
+                        onClick={() => handleNavigation(item.href, item.label)}
                         className={cn(
-                          "flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                          "w-full flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors text-left",
                           isActive
                             ? "bg-green-600/20 text-green-400"
                             : "text-slate-300 hover:bg-slate-800/50 hover:text-white",
@@ -219,7 +234,10 @@ export function DashboardSidebar({ user }: DashboardSidebarProps) {
                       >
                         <item.icon className={cn("h-5 w-5", collapsed ? "mx-auto" : "mr-3")} />
                         {!collapsed && <span>{item.label}</span>}
-                      </Link>
+                        {item.href === "/equipamentos-localizacao" && !collapsed && (
+                          <span className="ml-auto text-xs text-green-400">📍</span>
+                        )}
+                      </button>
                     </TooltipTrigger>
                     {collapsed && <TooltipContent side="right">{item.label}</TooltipContent>}
                   </Tooltip>

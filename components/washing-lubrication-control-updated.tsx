@@ -4,19 +4,21 @@ import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import { format, isValid, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import {
@@ -39,7 +41,6 @@ import {
   Plus,
   Wifi,
   WifiOff,
-  Copy,
   Upload,
   Download,
   Brain,
@@ -47,10 +48,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "@/components/ui/use-toast"
-import html2canvas from "html2canvas"
-import jsPDF from "jspdf"
 import * as XLSX from "xlsx"
-import { getSupabaseClient } from "@/lib/supabase-client"
+import { getSupabaseClient } from "@/lib/supabase"
 import {
   BarChart,
   Bar,
@@ -64,7 +63,6 @@ import {
   Pie,
   Cell,
 } from "recharts"
-import { MultiFormatExtractor } from "@/components/multi-format-extractor-embedded"
 import { UltraAdvancedAIExtractor } from "@/components/ultra-advanced-ai-extractor"
 
 // Tipos
@@ -82,7 +80,18 @@ interface MaintenanceRecord {
   updated_at?: string
 }
 
-// Adicionar propriedade para receber dados importados
+interface PDFExportOptions {
+  includeHeader: boolean
+  includeLogo: boolean
+  includeStatistics: boolean
+  includeCharts: boolean
+  includeFilters: boolean
+  orientation: "portrait" | "landscape"
+  pageSize: "a4" | "a3" | "letter"
+  fontSize: "small" | "medium" | "large"
+  colorScheme: "professional" | "colorful" | "minimal"
+}
+
 interface WashingLubricationControlProps {
   importedData?: Array<{
     frota: string
@@ -104,25 +113,19 @@ const locais = [
   { value: "MECANICO", label: "MECÂNICO" },
   { value: "OFICINA", label: "OFICINA" },
   { value: "PATIO", label: "PÁTIO" },
+  { value: "CAMPO", label: "CAMPO" },
 ]
 
-// Função auxiliar para formatar data com segurança
 const formatDateSafe = (dateString: string | undefined | null, formatStr = "dd/MM/yyyy"): string => {
   if (!dateString) return ""
   try {
-    // Verificar se a string é válida antes de tentar analisar
     if (typeof dateString !== "string" || dateString.trim() === "") {
       return ""
     }
-
-    // Tentar analisar a data
     const date = parseISO(dateString)
-
-    // Verificar se a data é válida
     if (!isValid(date)) {
       return ""
     }
-
     return format(date, formatStr)
   } catch (error) {
     console.error("Erro ao formatar data:", error, dateString)
@@ -130,37 +133,87 @@ const formatDateSafe = (dateString: string | undefined | null, formatStr = "dd/M
   }
 }
 
-// Dados de exemplo para inicialização
-const dadosExemplo: MaintenanceRecord[] = []
+const normalizarHorario = (horario: string): string => {
+  if (!horario) return "08:00"
+  let horarioLimpo = horario.toString().trim()
+  if (/^\d{1,4}$/.test(horarioLimpo)) {
+    if (horarioLimpo.length === 1) horarioLimpo = `0${horarioLimpo}:00`
+    else if (horarioLimpo.length === 2) horarioLimpo = `${horarioLimpo}:00`
+    else if (horarioLimpo.length === 3) horarioLimpo = `0${horarioLimpo.charAt(0)}:${horarioLimpo.slice(1)}`
+    else if (horarioLimpo.length === 4) horarioLimpo = `${horarioLimpo.slice(0, 2)}:${horarioLimpo.slice(2)}`
+  }
+  if (/^\d{1,2}:\d{2}$/.test(horarioLimpo)) {
+    const [horas, minutos] = horarioLimpo.split(":")
+    return `${horas.padStart(2, "0")}:${minutos}`
+  }
+  if (/^\d{1,2}:\d{2}:\d{2}$/.test(horarioLimpo)) {
+    const [horas, minutos] = horarioLimpo.split(":")
+    return `${horas.padStart(2, "0")}:${minutos}`
+  }
+  return "08:00"
+}
 
 export function WashingLubricationControl({ importedData }: WashingLubricationControlProps = {}) {
-  // Estados principais
-  const [registros, setRegistros] = useState<MaintenanceRecord[]>([])
+  const [registros, setRegistros] = useState<MaintenanceRecord[]>([
+    {
+      id: 1,
+      frota: "6597",
+      local: "LAVADOR",
+      tipo_preventiva: "lavagem_lubrificacao",
+      data_programada: "2025-01-26",
+      situacao: "PENDENTE",
+      horario_agendado: "04:00",
+      observacao:
+        "TROCA DE ÓLEO E FILTROS, VERIFICAR NÍVEL DO RADIADOR E POSSÍVEIS VAZAMENTOS NO SISTEMA DE ARREFECIMENTO. EQUIPAMENTO PRECISA DE ATENÇÃO URGENTE.",
+    },
+    {
+      id: 2,
+      frota: "8805",
+      local: "LAVADOR",
+      tipo_preventiva: "lavagem_lubrificacao",
+      data_programada: "2025-01-27",
+      situacao: "PENDENTE",
+      horario_agendado: "08:00",
+      observacao: "EM VIAGEM - PREVISÃO DE RETORNO DIA 28 PELA MANHÃ.",
+    },
+    {
+      id: 3,
+      frota: "4597",
+      local: "LUBRIFICADOR",
+      tipo_preventiva: "lubrificacao",
+      data_programada: "2025-01-28",
+      situacao: "EM_ANDAMENTO",
+      horario_agendado: "14:30",
+      observacao: "Aguardando peças para substituição da bomba de graxa.",
+    },
+    {
+      id: 4,
+      frota: "6602",
+      local: "MECANICO",
+      tipo_preventiva: "troca_oleo",
+      data_programada: "2025-01-25",
+      situacao: "ENCERRADO",
+      horario_agendado: "02:00",
+      observacao: "Concluído com sucesso.",
+      data_realizada: "2025-01-25",
+    },
+  ])
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [bdConectado, setBdConectado] = useState(false)
   const [statusConexao, setStatusConexao] = useState<"conectando" | "conectado" | "erro" | "offline">("offline")
-
-  // Estados de filtros
   const [termoBusca, setTermoBusca] = useState("")
   const [filtroTipo, setFiltroTipo] = useState<string>("todos")
   const [filtroSituacao, setFiltroSituacao] = useState<string>("todos")
   const [filtroLocal, setFiltroLocal] = useState<string>("todos")
   const [dataSelecionada, setDataSelecionada] = useState<Date | undefined>()
-
-  // Estados de diálogos
   const [dialogoAdicionar, setDialogoAdicionar] = useState(false)
   const [dialogoEditar, setDialogoEditar] = useState(false)
   const [registroSelecionado, setRegistroSelecionado] = useState<MaintenanceRecord | null>(null)
-  const [dialogoInicializarBd, setDialogoInicializarBd] = useState(false)
   const [dialogoImportar, setDialogoImportar] = useState(false)
-
-  // Estados de operações
   const [exportando, setExportando] = useState(false)
   const [sincronizando, setSincronizando] = useState(false)
   const [atualizandoStatus, setAtualizandoStatus] = useState<number | null>(null)
-
-  // Novo registro
   const [novoRegistro, setNovoRegistro] = useState<Omit<MaintenanceRecord, "id">>({
     frota: "",
     local: "LAVADOR",
@@ -170,153 +223,127 @@ export function WashingLubricationControl({ importedData }: WashingLubricationCo
     horario_agendado: "08:00",
     observacao: "",
   })
-
-  // Ref para exportação
   const tabelaRef = useRef<HTMLDivElement>(null)
+  const logoImageRef = useRef<HTMLImageElement | null>(null)
+  const [arquivoCsv, setArquivoCsv] = useState<File | null>(null)
 
-  // Inicialização - tentar conectar com banco de dados
+  useEffect(() => {
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    img.src = "/logo-branco-peres.png"
+    img.onload = () => {
+      logoImageRef.current = img
+    }
+    img.onerror = () => {
+      console.error("Falha ao carregar imagem do logo.")
+      toast({
+        title: "Erro no Logo",
+        description: "Não foi possível carregar o logo para exportação.",
+        variant: "destructive",
+      })
+    }
+  }, [])
+
   useEffect(() => {
     tentarConectarBanco()
   }, [])
 
-  // Adicionar useEffect para processar dados importados
   useEffect(() => {
     if (importedData && importedData.length > 0) {
       const processarDadosImportados = async () => {
         try {
           setCarregando(true)
-
-          // Preparar registros para importação
-          const novosRegistros = importedData.map((item, index) => ({
+          const novosRegistrosImportados = importedData.map((item) => ({
             frota: item.frota,
             local: "LAVADOR",
             tipo_preventiva: "lavagem_lubrificacao",
             data_programada: format(new Date(), "yyyy-MM-dd"),
             situacao: "PENDENTE" as const,
-            horario_agendado: item.horario,
+            horario_agendado: normalizarHorario(item.horario),
             observacao: "Importado via extração automática",
           }))
-
-          // Usar a função existente para importar registros
-          await importarRegistros(novosRegistros)
-
+          await importarRegistros(novosRegistrosImportados)
           toast({
             title: "Dados importados",
-            description: `${importedData.length} registros foram importados com sucesso para o banco de dados.`,
+            description: `${importedData.length} registros foram importados com sucesso.`,
           })
         } catch (error) {
           console.error("Erro ao processar dados importados:", error)
-          toast({
-            title: "Erro",
-            description: "Erro ao processar dados importados",
-            variant: "destructive",
-          })
+          toast({ title: "Erro", description: "Erro ao processar dados importados", variant: "destructive" })
         } finally {
           setCarregando(false)
         }
       }
-
       processarDadosImportados()
     }
   }, [importedData])
 
-  // Função para tentar conectar com banco
   const tentarConectarBanco = async () => {
     try {
       setStatusConexao("conectando")
       setErro(null)
-
       const supabase = getSupabaseClient()
-
-      // Tentar carregar dados da tabela que agora existe
       const { data, error } = await supabase.from("maintenance_records").select("*").order("id", { ascending: false })
-
-      if (error) {
-        throw error
-      }
-
-      // Sucesso! Carregar dados do banco
-      if (data && data.length > 0) {
-        setRegistros(data)
-      }
-
+      if (error) throw error
+      if (data && data.length > 0) setRegistros(data)
       setBdConectado(true)
       setStatusConexao("conectado")
-
-      toast({
-        title: "Conectado",
-        description: `Sistema conectado! ${data?.length || 0} registros carregados do banco de dados.`,
-      })
-    } catch (error) {
-      console.error("Erro na conexão:", error)
-      setStatusConexao("offline")
+      toast({ title: "Conectado", description: `Sistema conectado! ${data?.length || 0} registros carregados.` })
+    } catch (error: any) {
+      console.error("Erro na conexão inicial:", error)
       setBdConectado(false)
-      setErro("Sistema funcionando offline com dados locais.")
-
-      toast({
-        title: "Modo Offline",
-        description: "Sistema funcionando com dados locais.",
-        variant: "destructive",
-      })
+      let errorMessage = "Falha ao conectar ao banco. Operando em modo offline."
+      if (error.message && error.message.includes("relation") && error.message.includes("does not exist")) {
+        setStatusConexao("erro") // Specific state for table not found
+        errorMessage = "Tabela 'maintenance_records' não encontrada no banco. Verifique o schema."
+        setErro(errorMessage)
+        toast({ title: "Erro de Banco", description: errorMessage, variant: "destructive" })
+      } else if (error.message && error.message.toLowerCase().includes("rls")) {
+        setStatusConexao("erro")
+        errorMessage = "Acesso negado. Verifique as políticas de RLS (Row Level Security) da tabela."
+        setErro(errorMessage)
+        toast({ title: "Erro de Permissão", description: errorMessage, variant: "destructive" })
+      } else {
+        setStatusConexao("offline")
+        setErro(errorMessage)
+        toast({ title: "Modo Offline", description: errorMessage, variant: "destructive" })
+      }
     }
   }
 
-  // Função para carregar registros do banco
   const carregarRegistrosDoBanco = async () => {
     try {
       const supabase = getSupabaseClient()
-
       const { data, error } = await supabase.from("maintenance_records").select("*").order("id", { ascending: false })
-
-      if (error) {
-        throw error
-      }
-
-      if (data && data.length > 0) {
-        setRegistros(data)
-      }
+      if (error) throw error
+      if (data && data.length > 0) setRegistros(data)
     } catch (error) {
       console.error("Erro ao carregar registros:", error)
       throw error
     }
   }
 
-  // Função para gerar próximo ID
-  const gerarProximoId = () => {
-    return Math.max(...registros.map((r) => r.id), 0) + 1
-  }
+  const gerarProximoId = () => Math.max(...registros.map((r) => r.id), 0) + 1
 
-  // Função para adicionar registro
   const adicionarRegistro = async () => {
     try {
       setCarregando(true)
       setErro(null)
+      if (!novoRegistro.frota.trim()) throw new Error("Frota é obrigatória")
+      if (!novoRegistro.data_programada) throw new Error("Data programada é obrigatória")
+      if (!novoRegistro.horario_agendado) throw new Error("Horário agendado é obrigatório")
 
-      // Validações
-      if (!novoRegistro.frota.trim()) {
-        throw new Error("Frota é obrigatória")
-      }
-      if (!novoRegistro.data_programada) {
-        throw new Error("Data programada é obrigatória")
-      }
-      if (!novoRegistro.horario_agendado) {
-        throw new Error("Horário agendado é obrigatório")
-      }
-
-      const novoId = gerarProximoId()
       const registroCompleto: MaintenanceRecord = {
         ...novoRegistro,
-        id: novoId,
+        id: gerarProximoId(),
+        horario_agendado: normalizarHorario(novoRegistro.horario_agendado),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
 
       if (bdConectado) {
-        // Tentar salvar no banco de dados
         try {
           const supabase = getSupabaseClient()
-
-          // Preparar dados para inserção no banco
           const dadosParaBanco = {
             frota: registroCompleto.frota,
             local: registroCompleto.local,
@@ -329,26 +356,21 @@ export function WashingLubricationControl({ importedData }: WashingLubricationCo
             created_at: registroCompleto.created_at,
             updated_at: registroCompleto.updated_at,
           }
-
           const { data, error } = await supabase.from("maintenance_records").insert([dadosParaBanco]).select()
-
-          if (error) {
-            throw error
-          }
-
-          // Sucesso no banco, usar dados retornados
+          if (error) throw error
           setRegistros((prev) => [data[0], ...prev])
-        } catch (dbError) {
-          console.warn("Erro no banco, salvando localmente:", dbError)
-          // Salvar localmente se houver erro no banco
+        } catch (dbError: any) {
+          console.error("Erro ao adicionar registro no banco:", dbError)
+          toast({
+            title: "Erro no Banco",
+            description: `Falha ao salvar no banco: ${dbError.message}. Salvo localmente.`,
+            variant: "warning",
+          })
           setRegistros((prev) => [registroCompleto, ...prev])
         }
       } else {
-        // Salvar localmente
         setRegistros((prev) => [registroCompleto, ...prev])
       }
-
-      // Limpar formulário
       setNovoRegistro({
         frota: "",
         local: "LAVADOR",
@@ -358,45 +380,30 @@ export function WashingLubricationControl({ importedData }: WashingLubricationCo
         horario_agendado: "08:00",
         observacao: "",
       })
-
       setDialogoAdicionar(false)
-
-      toast({
-        title: "Sucesso",
-        description: `Registro adicionado ${bdConectado ? "no banco de dados" : "localmente"}!`,
-      })
+      toast({ title: "Sucesso", description: `Registro adicionado ${bdConectado ? "no banco" : "localmente"}!` })
     } catch (error) {
       const mensagem = error instanceof Error ? error.message : "Erro desconhecido"
       setErro(mensagem)
-      toast({
-        title: "Erro",
-        description: mensagem,
-        variant: "destructive",
-      })
+      toast({ title: "Erro", description: mensagem, variant: "destructive" })
     } finally {
       setCarregando(false)
     }
   }
 
-  // Função para atualizar registro
   const atualizarRegistro = async () => {
     if (!registroSelecionado) return
-
     try {
       setCarregando(true)
       setErro(null)
-
       const registroAtualizado = {
         ...registroSelecionado,
+        horario_agendado: normalizarHorario(registroSelecionado.horario_agendado),
         updated_at: new Date().toISOString(),
       }
-
       if (bdConectado) {
-        // Tentar atualizar no banco de dados
         try {
           const supabase = getSupabaseClient()
-
-          // Preparar dados para atualização no banco
           const dadosParaAtualizacao = {
             frota: registroAtualizado.frota,
             local: registroAtualizado.local,
@@ -408,60 +415,45 @@ export function WashingLubricationControl({ importedData }: WashingLubricationCo
             observacao: registroAtualizado.observacao || null,
             updated_at: registroAtualizado.updated_at,
           }
-
           const { error } = await supabase
             .from("maintenance_records")
             .update(dadosParaAtualizacao)
             .eq("id", registroSelecionado.id)
-
-          if (error) {
-            throw error
-          }
-        } catch (dbError) {
-          console.warn("Erro no banco, atualizando localmente:", dbError)
+          if (error) throw error
+        } catch (dbError: any) {
+          console.error("Erro ao atualizar registro no banco:", dbError)
+          toast({
+            title: "Erro no Banco",
+            description: `Falha ao atualizar no banco: ${dbError.message}. Atualizado localmente.`,
+            variant: "warning",
+          })
         }
       }
-
-      // Atualizar localmente
       setRegistros((prev) => prev.map((r) => (r.id === registroSelecionado.id ? registroAtualizado : r)))
-
       setDialogoEditar(false)
       setRegistroSelecionado(null)
-
-      toast({
-        title: "Sucesso",
-        description: `Registro atualizado ${bdConectado ? "no banco de dados" : "localmente"}!`,
-      })
+      toast({ title: "Sucesso", description: `Registro atualizado ${bdConectado ? "no banco" : "localmente"}!` })
     } catch (error) {
       const mensagem = error instanceof Error ? error.message : "Erro desconhecido"
       setErro(mensagem)
-      toast({
-        title: "Erro",
-        description: mensagem,
-        variant: "destructive",
-      })
+      toast({ title: "Erro", description: mensagem, variant: "destructive" })
     } finally {
       setCarregando(false)
     }
   }
 
-  // Função para alterar status
   const alterarStatus = async (id: number, novoStatus: "PENDENTE" | "ENCERRADO" | "EM_ANDAMENTO") => {
     try {
       setAtualizandoStatus(id)
-
       const registro = registros.find((r) => r.id === id)
       if (!registro) return
-
       const registroAtualizado = {
         ...registro,
         situacao: novoStatus,
         data_realizada: novoStatus === "ENCERRADO" ? format(new Date(), "yyyy-MM-dd") : registro.data_realizada,
         updated_at: new Date().toISOString(),
       }
-
       if (bdConectado) {
-        // Tentar atualizar no banco de dados
         try {
           const supabase = getSupabaseClient()
           const { error } = await supabase
@@ -472,67 +464,48 @@ export function WashingLubricationControl({ importedData }: WashingLubricationCo
               updated_at: registroAtualizado.updated_at,
             })
             .eq("id", id)
-
-          if (error) {
-            throw error
-          }
-        } catch (dbError) {
-          console.warn("Erro no banco, atualizando localmente:", dbError)
+          if (error) throw error
+        } catch (dbError: any) {
+          console.error("Erro ao alterar status no banco:", dbError)
+          toast({
+            title: "Erro no Banco",
+            description: `Falha ao alterar status no banco: ${dbError.message}. Alterado localmente.`,
+            variant: "warning",
+          })
         }
       }
-
-      // Atualizar localmente
       setRegistros((prev) => prev.map((r) => (r.id === id ? registroAtualizado : r)))
-
-      toast({
-        title: "Sucesso",
-        description: `Status atualizado ${bdConectado ? "no banco de dados" : "localmente"}!`,
-      })
+      toast({ title: "Sucesso", description: `Status atualizado ${bdConectado ? "no banco" : "localmente"}!` })
     } catch (error) {
       const mensagem = error instanceof Error ? error.message : "Erro desconhecido"
-      toast({
-        title: "Erro",
-        description: mensagem,
-        variant: "destructive",
-      })
+      toast({ title: "Erro", description: mensagem, variant: "destructive" })
     } finally {
       setAtualizandoStatus(null)
     }
   }
 
-  // Função para excluir registro
   const excluirRegistro = async (id: number) => {
     try {
       setCarregando(true)
-
       if (bdConectado) {
-        // Tentar excluir do banco de dados
         try {
           const supabase = getSupabaseClient()
           const { error } = await supabase.from("maintenance_records").delete().eq("id", id)
-
-          if (error) {
-            throw error
-          }
-        } catch (dbError) {
-          console.warn("Erro no banco, excluindo localmente:", dbError)
+          if (error) throw error
+        } catch (dbError: any) {
+          console.error("Erro ao excluir registro no banco:", dbError)
+          toast({
+            title: "Erro no Banco",
+            description: `Falha ao excluir no banco: ${dbError.message}. Excluído localmente.`,
+            variant: "warning",
+          })
         }
       }
-
-      // Excluir localmente
       setRegistros((prev) => prev.filter((r) => r.id !== id))
-
-      toast({
-        title: "Sucesso",
-        description: `Registro excluído ${bdConectado ? "do banco de dados" : "localmente"}!`,
-      })
+      toast({ title: "Sucesso", description: `Registro excluído ${bdConectado ? "do banco" : "localmente"}!` })
     } catch (error) {
       const mensagem = error instanceof Error ? error.message : "Erro desconhecido"
-      toast({
-        title: "Erro",
-        description: mensagem,
-        variant: "destructive",
-      })
+      toast({ title: "Erro", description: mensagem, variant: "destructive" })
     } finally {
       setCarregando(false)
     }
@@ -541,161 +514,85 @@ export function WashingLubricationControl({ importedData }: WashingLubricationCo
   const limparTodosRegistros = async () => {
     try {
       setCarregando(true)
-
       if (bdConectado) {
-        // Tentar excluir todos os registros do banco de dados
         try {
           const supabase = getSupabaseClient()
           const { error } = await supabase.from("maintenance_records").delete().neq("id", 0)
-
-          if (error) {
-            throw error
-          }
+          if (error) throw error
         } catch (dbError) {
           console.warn("Erro ao limpar registros no banco:", dbError)
           throw dbError
         }
       }
-
-      // Limpar registros localmente
       setRegistros([])
-
       toast({
         title: "Sucesso",
-        description: `Todos os registros foram excluídos ${bdConectado ? "do banco de dados" : "localmente"}!`,
+        description: `Todos os registros foram excluídos ${bdConectado ? "do banco" : "localmente"}!`,
       })
     } catch (error) {
       const mensagem = error instanceof Error ? error.message : "Erro desconhecido"
-      toast({
-        title: "Erro",
-        description: mensagem,
-        variant: "destructive",
-      })
+      toast({ title: "Erro", description: mensagem, variant: "destructive" })
     } finally {
       setCarregando(false)
     }
   }
 
-  // Função para sincronizar com banco
   const sincronizarBanco = async () => {
     try {
       setSincronizando(true)
       setErro(null)
-
       await carregarRegistrosDoBanco()
       setBdConectado(true)
       setStatusConexao("conectado")
-
-      toast({
-        title: "Sucesso",
-        description: "Dados sincronizados com o banco de dados!",
-      })
+      toast({ title: "Sucesso", description: "Dados sincronizados com o banco de dados!" })
     } catch (error) {
       const mensagem = error instanceof Error ? error.message : "Erro de sincronização"
       setStatusConexao("erro")
       setBdConectado(false)
-      toast({
-        title: "Erro",
-        description: mensagem,
-        variant: "destructive",
-      })
+      toast({ title: "Erro", description: mensagem, variant: "destructive" })
     } finally {
       setSincronizando(false)
     }
   }
 
-  // Função para copiar SQL
-  const copiarSQL = () => {
-    const sqlScript = `-- Script SQL para criar a tabela maintenance_records
-CREATE TABLE IF NOT EXISTS maintenance_records (
-   id SERIAL PRIMARY KEY,
-   frota VARCHAR(50) NOT NULL,
-   local VARCHAR(100) NOT NULL,
-   tipo_preventiva VARCHAR(100) NOT NULL,
-   data_programada DATE NOT NULL,
-   data_realizada DATE,
-   situacao VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' CHECK (situacao IN ('PENDENTE', 'ENCERRADO', 'EM_ANDAMENTO')),
-   horario_agendado TIME NOT NULL,
-   observacao TEXT,
-   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Criar índices para melhor performance
-CREATE INDEX IF NOT EXISTS idx_maintenance_records_frota ON maintenance_records(frota);
-CREATE INDEX IF NOT EXISTS idx_maintenance_records_situacao ON maintenance_records(situacao);
-CREATE INDEX IF NOT EXISTS idx_maintenance_records_data_programada ON maintenance_records(data_programada);
-CREATE INDEX IF NOT EXISTS idx_maintenance_records_local ON maintenance_records(local);
-
--- Inserir dados de exemplo
-INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada, situacao, horario_agendado, observacao) VALUES
-('6597', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-26', 'PENDENTE', '04:00', 'TROCA DE ÓLEO'),
-('8805', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-27', 'PENDENTE', '08:00', 'EM VIAGEM'),
-('4597', 'LUBRIFICADOR', 'lubrificacao', '2025-01-28', 'EM_ANDAMENTO', '14:30', 'Aguardando peças'),
-('6602', 'MECANICO', 'troca_oleo', '2025-01-25', 'ENCERRADO', '02:00', 'Concluído com sucesso');`
-
-    navigator.clipboard.writeText(sqlScript)
-    toast({
-      title: "SQL Copiado",
-      description: "Script SQL copiado para a área de transferência!",
-    })
-  }
-
-  // Função para exportar Excel
   const exportarExcel = () => {
     try {
       setExportando(true)
-
-      const dadosExport = registrosFiltrados.map((registro) => ({
-        Frota: registro.frota,
-        Local: registro.local,
-        "Tipo Preventiva": obterLabelTipo(registro.tipo_preventiva),
-        "Data Programada": formatDateSafe(registro.data_programada),
-        "Data Realizada": formatDateSafe(registro.data_realizada),
-        Situação: registro.situacao === "EM_ANDAMENTO" ? "ANDAMENTO" : registro.situacao,
-        "Horário Agendado": registro.horario_agendado,
-        Observação: registro.observacao || "",
+      const dadosExport = registrosFiltrados.map((r) => ({
+        Frota: r.frota,
+        Local: r.local,
+        "Tipo Preventiva": obterLabelTipo(r.tipo_preventiva),
+        "Data Programada": formatDateSafe(r.data_programada),
+        "Data Realizada": formatDateSafe(r.data_realizada),
+        Situação: r.situacao === "EM_ANDAMENTO" ? "ANDAMENTO" : r.situacao,
+        "Horário Agendado": r.horario_agendado,
+        Observação: r.observacao || "",
       }))
-
       const worksheet = XLSX.utils.json_to_sheet(dadosExport)
       const workbook = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(workbook, worksheet, "Lavagem e Lubrificação")
-
-      // Ajustar largura das colunas
-      const colWidths = [
-        { wch: 10 }, // Frota
-        { wch: 15 }, // Local
-        { wch: 20 }, // Tipo Preventiva
-        { wch: 15 }, // Data Programada
-        { wch: 15 }, // Data Realizada
-        { wch: 12 }, // Situação
-        { wch: 15 }, // Horário Agendado
-        { wch: 30 }, // Observação
+      worksheet["!cols"] = [
+        { wch: 10 },
+        { wch: 15 },
+        { wch: 20 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 12 },
+        { wch: 15 },
+        { wch: 30 },
       ]
-      worksheet["!cols"] = colWidths
-
       XLSX.writeFile(workbook, "controle-lavagem-lubrificacao.xlsx")
-
-      toast({
-        title: "Sucesso",
-        description: "Arquivo Excel exportado com sucesso!",
-      })
+      toast({ title: "Sucesso", description: "Arquivo Excel exportado!" })
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao exportar arquivo Excel",
-        variant: "destructive",
-      })
+      toast({ title: "Erro", description: "Erro ao exportar Excel", variant: "destructive" })
     } finally {
       setExportando(false)
     }
   }
 
-  // Função para exportar modelo Excel
   const exportarModeloExcel = () => {
     try {
       setExportando(true)
-
       const workbook = XLSX.utils.book_new()
       const worksheet = XLSX.utils.aoa_to_sheet([
         [
@@ -711,74 +608,486 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
         ["6597", "LAVADOR", "Lavagem / Lubrificação", "26/01/2025", "", "PENDENTE", "04:00", "TROCA DE ÓLEO"],
         ["8805", "LAVADOR", "Lavagem", "27/01/2025", "", "PENDENTE", "08:00", "EM VIAGEM"],
       ])
-
-      // Ajustar largura das colunas
-      const colWidths = [
-        { wch: 10 }, // Frota
-        { wch: 15 }, // Local
-        { wch: 20 }, // Tipo Preventiva
-        { wch: 15 }, // Data Programada
-        { wch: 15 }, // Data Realizada
-        { wch: 12 }, // Situação
-        { wch: 15 }, // Horário Agendado
-        { wch: 30 }, // Observação
+      worksheet["!cols"] = [
+        { wch: 10 },
+        { wch: 15 },
+        { wch: 20 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 12 },
+        { wch: 15 },
+        { wch: 30 },
       ]
-      worksheet["!cols"] = colWidths
-
       XLSX.utils.book_append_sheet(workbook, worksheet, "Modelo de Importação")
       XLSX.writeFile(workbook, "modelo-importacao-lavagem-lubrificacao.xlsx")
-
-      toast({
-        title: "Sucesso",
-        description: "Modelo Excel exportado com sucesso!",
-      })
+      toast({ title: "Sucesso", description: "Modelo Excel exportado!" })
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao exportar modelo Excel",
-        variant: "destructive",
-      })
+      toast({ title: "Erro", description: "Erro ao exportar modelo Excel", variant: "destructive" })
     } finally {
       setExportando(false)
     }
   }
 
-  // Função para exportar PDF
-  const exportarPDF = async () => {
+  const exportarImagemPowerBIFuturisticAgro = async () => {
+    if (!logoImageRef.current) {
+      toast({
+        title: "Logo não carregado",
+        description: "A imagem do logo ainda não foi carregada. Tente novamente.",
+        variant: "destructive",
+      })
+      return
+    }
     try {
       setExportando(true)
+      const canvas = document.createElement("canvas")
+      const ctx = canvas.getContext("2d")
+      if (!ctx) throw new Error("Contexto do canvas não criado")
 
-      if (!tabelaRef.current) {
-        throw new Error("Tabela não encontrada")
+      const colors = {
+        bgPage: "#0A0F14",
+        bgHeader: "#10161D",
+        bgCard: "#161C24",
+        textTitle: "#F0F6FC",
+        textPrimary: "#C9D1D9",
+        textSecondary: "#8B949E",
+        accentGreen: "#2ECC71",
+        accentYellow: "#F1C40F",
+        accentRed: "#E74C3C",
+        borderCard: "#2A3038",
+        gridLines: "rgba(139, 148, 158, 0.1)",
+        tableHeaderBg: "#10161D",
+        tableEvenRowBg: "#161C24",
+        tableOddRowBg: "#13181F",
+        tableBorder: "#2A3038",
       }
 
-      const canvas = await html2canvas(tabelaRef.current, {
-        scale: 2,
-        logging: false,
-        useCORS: true,
+      const FONT_FAMILY = "'Inter', 'Segoe UI', Roboto, sans-serif"
+      const pagePadding = 90
+      const headerActualHeight = 180
+      const kpiSectionHeight = 240
+      const kpiSpacing = 60
+      const pieChartSectionHeight = 600
+      const sectionSpacing = 60
+      const tableHeaderHeight = 80
+      const tableRowHeight = 90
+      const tableFooterHeight = 50
+      const bottomPadding = 70
+
+      const tableDataHeight = registrosFiltrados.length * tableRowHeight
+      const canvasHeight =
+        headerActualHeight +
+        pagePadding +
+        kpiSectionHeight +
+        kpiSpacing +
+        pieChartSectionHeight +
+        sectionSpacing +
+        tableHeaderHeight +
+        tableDataHeight +
+        tableFooterHeight +
+        bottomPadding
+      const canvasWidth = 1920
+
+      canvas.width = canvasWidth
+      canvas.height = canvasHeight
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = "high"
+
+      ctx.fillStyle = colors.bgPage
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+
+      let currentY = 0
+      ctx.fillStyle = colors.bgHeader
+      ctx.fillRect(0, currentY, canvasWidth, headerActualHeight)
+      const logo = logoImageRef.current
+      const logoHeight = 110
+      const logoWidth = (logo.width / logo.height) * logoHeight
+      const logoX = pagePadding
+      const logoY = (headerActualHeight - logoHeight) / 2
+      ctx.drawImage(logo, logoX, logoY, logoWidth, logoHeight)
+      const titleX = logoX + logoWidth + 45
+
+      const drawText = (
+        text: string,
+        x: number,
+        y: number,
+        size: number,
+        color: string,
+        weight = "normal",
+        align: CanvasTextAlign = "left",
+        baseline: CanvasTextBaseline = "alphabetic",
+      ) => {
+        ctx.font = `${weight} ${size}px ${FONT_FAMILY}`
+        ctx.fillStyle = color
+        ctx.textAlign = align
+        ctx.textBaseline = baseline
+        ctx.fillText(text, x, y)
+      }
+      const drawRoundedRect = (x: number, y: number, width: number, height: number, radius: number) => {
+        ctx.beginPath()
+        ctx.moveTo(x + radius, y)
+        ctx.lineTo(x + width - radius, y)
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius)
+        ctx.lineTo(x + width, y + height - radius)
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height)
+        ctx.lineTo(x + radius, y + height)
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius)
+        ctx.lineTo(x, y + radius)
+        ctx.quadraticCurveTo(x, y, x + radius, y)
+        ctx.closePath()
+      }
+
+      // Título e Subtítulo do Cabeçalho da Imagem (usando baseline 'middle' e ajustes específicos)
+      drawText(
+        "Controle de Lavagem e Lubrificação Logística",
+        titleX,
+        logoY + logoHeight / 2 - 25,
+        58,
+        colors.textTitle,
+        "bold",
+        "left",
+        "middle",
+      )
+      drawText(
+        `Branco Peres Agro S/A - ${format(new Date(), "dd/MM/yyyy")}`,
+        titleX,
+        logoY + logoHeight / 2 + 40,
+        40,
+        colors.textSecondary,
+        "normal",
+        "left",
+        "middle",
+      )
+      currentY += headerActualHeight + pagePadding
+
+      // KPIs (usando baseline 'middle' e ajustes específicos)
+      const numKpiCards = 3
+      const totalKpiWidth = canvasWidth - 2 * pagePadding
+      const kpiCardWidth = (totalKpiWidth - (numKpiCards - 1) * kpiSpacing) / numKpiCards
+      const kpiData = [
+        { title: "Total Registros", value: registros.length.toString(), color: colors.accentYellow },
+        {
+          title: "Pendentes",
+          value: registros.filter((r) => r.situacao === "PENDENTE").length.toString(),
+          color: colors.accentRed,
+        },
+        {
+          title: "Concluídos Hoje",
+          value: registros
+            .filter((r) => r.situacao === "ENCERRADO" && r.data_realizada === format(new Date(), "yyyy-MM-dd"))
+            .length.toString(),
+          color: colors.accentGreen,
+        },
+      ]
+      kpiData.forEach((kpi, index) => {
+        const cardX = pagePadding + index * (kpiCardWidth + kpiSpacing)
+        ctx.fillStyle = colors.bgCard
+        ctx.strokeStyle = colors.borderCard
+        ctx.lineWidth = 1.5
+        drawRoundedRect(cardX, currentY, kpiCardWidth, kpiSectionHeight, 16)
+        ctx.fill()
+        ctx.stroke()
+        drawText(
+          kpi.title,
+          cardX + kpiCardWidth / 2,
+          currentY + 60,
+          44,
+          colors.textSecondary,
+          "600",
+          "center",
+          "middle",
+        )
+        drawText(
+          kpi.value,
+          cardX + kpiCardWidth / 2,
+          currentY + kpiSectionHeight / 2 + 50,
+          105,
+          kpi.color,
+          "bold",
+          "center",
+          "middle",
+        )
+      })
+      currentY += kpiSectionHeight + sectionSpacing
+
+      // Gráfico de Pizza (usando baseline 'middle' e ajustes específicos)
+      const pieCardX = pagePadding
+      const pieCardWidth = canvasWidth - 2 * pagePadding
+      ctx.fillStyle = colors.bgCard
+      ctx.strokeStyle = colors.borderCard
+      ctx.lineWidth = 1.5
+      drawRoundedRect(pieCardX, currentY, pieCardWidth, pieChartSectionHeight, 16)
+      ctx.fill()
+      ctx.stroke()
+      drawText(
+        "Distribuição de Status",
+        pieCardX + 50,
+        currentY + 55, // Y para o topo do texto
+        48,
+        colors.textPrimary,
+        "bold",
+        "left",
+        "top",
+      )
+
+      const pieData = [
+        {
+          label: "Pendentes",
+          value: registros.filter((r) => r.situacao === "PENDENTE").length,
+          color: colors.accentRed,
+        },
+        {
+          label: "Em Andamento",
+          value: registros.filter((r) => r.situacao === "EM_ANDAMENTO").length,
+          color: colors.accentYellow,
+        },
+        {
+          label: "Concluídos",
+          value: registros.filter((r) => r.situacao === "ENCERRADO").length,
+          color: colors.accentGreen,
+        },
+      ]
+      const totalPieValue = pieData.reduce((sum, item) => sum + item.value, 0)
+      if (totalPieValue > 0) {
+        const pieContentX = pieCardX + 45
+        const pieContentY = currentY + 55 + 45 + 35
+        const pieContentWidth = pieCardWidth - 90
+        const pieContentHeight = pieChartSectionHeight - 100 - 45 - 35
+        const pieCenterX = pieContentX + pieContentWidth / 2.5
+        const pieCenterY = pieContentY + pieContentHeight / 2
+        const radius = Math.min(pieContentWidth / 2.5, pieContentHeight) / 1.8
+        let startAngle = -Math.PI / 2
+        pieData.forEach((item) => {
+          if (item.value === 0) return
+          const sliceAngle = (item.value / totalPieValue) * 2 * Math.PI
+          ctx.beginPath()
+          ctx.moveTo(pieCenterX, pieCenterY)
+          ctx.arc(pieCenterX + 6, pieCenterY + 6, radius, startAngle, startAngle + sliceAngle)
+          ctx.closePath()
+          ctx.fillStyle = "rgba(0,0,0,0.25)"
+          ctx.fill()
+          startAngle += sliceAngle
+        })
+        startAngle = -Math.PI / 2
+        pieData.forEach((item) => {
+          if (item.value === 0) return
+          const sliceAngle = (item.value / totalPieValue) * 2 * Math.PI
+          const endAngle = startAngle + sliceAngle
+          ctx.beginPath()
+          ctx.moveTo(pieCenterX, pieCenterY)
+          ctx.arc(pieCenterX, pieCenterY, radius, startAngle, endAngle)
+          ctx.closePath()
+          ctx.fillStyle = item.color
+          ctx.fill()
+          ctx.lineWidth = 2.5
+          ctx.strokeStyle = colors.bgCard
+          ctx.stroke()
+          startAngle = endAngle
+        })
+        const legendX = pieCenterX + radius + 80
+        const legendYStart = pieCenterY - (pieData.length / 2) * 50 + 20
+        pieData.forEach((item, index) => {
+          const itemY = legendYStart + index * 55
+          ctx.fillStyle = item.color
+          ctx.fillRect(legendX, itemY - 16, 32, 32)
+          drawText(
+            `${item.label}: ${item.value} (${((item.value / totalPieValue) * 100).toFixed(0)}%)`,
+            legendX + 45,
+            itemY, // Y para o meio do texto da legenda
+            36,
+            colors.textPrimary,
+            "normal",
+            "left",
+            "middle",
+          )
+        })
+      } else {
+        drawText(
+          "Sem dados para o gráfico",
+          pieCardX + pieCardWidth / 2,
+          currentY + pieChartSectionHeight / 2, // Y para o meio
+          38,
+          colors.textSecondary,
+          "normal",
+          "center",
+          "middle",
+        )
+      }
+      currentY += pieChartSectionHeight + sectionSpacing
+
+      // Tabela
+      const tableX = pagePadding
+      const tableWidth = canvasWidth - 2 * pagePadding
+      const columns = [
+        { header: "Frota", key: "frota", width: 0.1 },
+        { header: "Local", key: "local", width: 0.12 },
+        { header: "Tipo Prev.", key: "tipo_preventiva", width: 0.18 },
+        { header: "Data Prog.", key: "data_programada", width: 0.12 },
+        { header: "Data Real.", key: "data_realizada", width: 0.12 },
+        { header: "Situação", key: "situacao", width: 0.12 },
+        { header: "Horário", key: "horario_agendado", width: 0.1 },
+        { header: "Observação", key: "observacao", width: 0.14 },
+      ]
+
+      // Cabeçalho da Tabela (usando baseline 'top')
+      ctx.fillStyle = colors.tableHeaderBg
+      ctx.fillRect(tableX, currentY, tableWidth, tableHeaderHeight)
+      let currentXHeader = tableX
+      const headerCellFontSize = 32
+      columns.forEach((col) => {
+        const textYHeader = currentY + (tableHeaderHeight - headerCellFontSize) / 2
+        drawText(
+          col.header,
+          currentXHeader + (tableWidth * col.width) / 2,
+          textYHeader,
+          headerCellFontSize,
+          colors.textTitle,
+          "600",
+          "center",
+          "top",
+        )
+        currentXHeader += tableWidth * col.width
+      })
+      currentY += tableHeaderHeight
+
+      // Linhas da Tabela (usando baseline 'top')
+      registrosFiltrados.forEach((registro, index) => {
+        ctx.fillStyle = index % 2 === 0 ? colors.tableEvenRowBg : colors.tableOddRowBg
+        ctx.fillRect(tableX, currentY, tableWidth, tableRowHeight)
+        let currentXCell = tableX
+        columns.forEach((col) => {
+          let cellValue = (registro as any)[col.key] || ""
+          let textColor = colors.textPrimary
+          if (col.key === "data_programada" || col.key === "data_realizada") cellValue = formatDateSafe(cellValue)
+          else if (col.key === "tipo_preventiva") cellValue = obterLabelTipo(cellValue)
+          else if (col.key === "local") cellValue = obterLabelLocal(cellValue)
+          else if (col.key === "situacao") {
+            if (cellValue === "PENDENTE") textColor = colors.accentRed
+            else if (cellValue === "EM_ANDAMENTO") {
+              textColor = colors.accentYellow
+              cellValue = "ANDAMENTO" // Change the display value for the image
+            } else if (cellValue === "ENCERRADO") textColor = colors.accentGreen
+          }
+
+          const cellPadding = 18
+          const colActualWidth = tableWidth * col.width - 2 * cellPadding
+          const baseFontSize = 30
+          const observationFontSize = 28
+
+          if (col.key === "observacao" && cellValue.length > 0) {
+            ctx.font = `${"normal"} ${observationFontSize}px ${FONT_FAMILY}`
+            const words = cellValue.split(" ")
+            let line = ""
+            const lines = []
+            const maxLines = 2 // Reduzido para 2 para melhor encaixe e centralização
+
+            for (let n = 0; n < words.length; n++) {
+              const testLine = line + words[n] + " "
+              const metrics = ctx.measureText(testLine)
+              const testWidth = metrics.width
+              if (testWidth > colActualWidth && n > 0) {
+                lines.push(line.trim())
+                line = words[n] + " "
+              } else {
+                line = testLine
+              }
+            }
+            lines.push(line.trim())
+
+            let linesToDraw = lines
+            if (lines.length > maxLines) {
+              linesToDraw = lines.slice(0, maxLines)
+              const lastLineIndex = maxLines - 1
+              let truncatedLine = linesToDraw[lastLineIndex]
+              while (ctx.measureText(truncatedLine + "...").width > colActualWidth && truncatedLine.length > 0) {
+                truncatedLine = truncatedLine.slice(0, -1)
+              }
+              linesToDraw[lastLineIndex] = truncatedLine + "..."
+            }
+
+            const numLinhasEfetivas = linesToDraw.length
+            const paddingEntreLinhas = 4 // Espaçamento entre as linhas da observação
+            // Altura total do bloco de texto da observação
+            const totalTextHeight =
+              numLinhasEfetivas > 0
+                ? numLinhasEfetivas * observationFontSize + Math.max(0, numLinhasEfetivas - 1) * paddingEntreLinhas
+                : 0
+
+            let textYForObservation = currentY + (tableRowHeight - totalTextHeight) / 2
+
+            for (const l of linesToDraw) {
+              drawText(
+                l,
+                currentXCell + cellPadding,
+                textYForObservation,
+                observationFontSize,
+                textColor,
+                "normal",
+                "left",
+                "top", // Baseline 'top'
+              )
+              textYForObservation += observationFontSize + paddingEntreLinhas // Mover para o topo da próxima linha
+            }
+          } else {
+            const textYForCell = currentY + (tableRowHeight - baseFontSize) / 2
+            drawText(
+              cellValue.toString(),
+              currentXCell + (tableWidth * col.width) / 2,
+              textYForCell,
+              baseFontSize,
+              textColor,
+              "normal",
+              "center",
+              "top", // Baseline 'top'
+            )
+          }
+          currentXCell += tableWidth * col.width
+        })
+        ctx.strokeStyle = colors.tableBorder
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(tableX, currentY + tableRowHeight)
+        ctx.lineTo(tableX + tableWidth, currentY + tableRowHeight)
+        ctx.stroke()
+        currentY += tableRowHeight
       })
 
-      const imgData = canvas.toDataURL("image/png")
-      const pdf = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a4",
-      })
+      // Rodapé da Imagem (usando baseline 'top')
+      currentY += bottomPadding / 2
+      const footerFontSize = 34
+      const textYFooter = currentY + (tableFooterHeight - footerFontSize) / 2
+      drawText(
+        `Exportado em: ${format(new Date(), "dd/MM/yyyy HH:mm")} | Branco Peres Agro S/A`,
+        canvasWidth / 2,
+        textYFooter,
+        footerFontSize,
+        colors.textSecondary,
+        "normal",
+        "center",
+        "top",
+      )
 
-      const imgWidth = 280
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-      pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight)
-      pdf.save("controle-lavagem-lubrificacao.pdf")
-
-      toast({
-        title: "Sucesso",
-        description: "Arquivo PDF exportado com sucesso!",
-      })
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            link.href = url
+            link.download = `dashboard-completo-BP-${format(new Date(), "yyyy-MM-dd-HHmm")}.png`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+            toast({ title: "Dashboard Exportado!", description: "Imagem completa do dashboard gerada com sucesso." })
+          }
+        },
+        "image/png",
+        1.0,
+      )
     } catch (error) {
+      console.error("Erro ao exportar dashboard:", error)
       toast({
-        title: "Erro",
-        description: "Erro ao exportar arquivo PDF",
+        title: "Erro na Exportação",
+        description: "Ocorreu um erro ao gerar o dashboard.",
         variant: "destructive",
       })
     } finally {
@@ -786,208 +1095,391 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
     }
   }
 
-  // Função para importar registros
   const importarRegistros = async (registrosImportados: Omit<MaintenanceRecord, "id">[]) => {
     try {
       setCarregando(true)
-
-      // Adicionar IDs e timestamps aos registros importados
-      const registrosCompletos: MaintenanceRecord[] = registrosImportados.map((registro, index) => ({
-        ...registro,
-        id: gerarProximoId() + index,
+      const registrosCompletos: MaintenanceRecord[] = registrosImportados.map((r, i) => ({
+        ...r,
+        id: gerarProximoId() + i,
+        horario_agendado: normalizarHorario(r.horario_agendado),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }))
-
       if (bdConectado) {
-        // Tentar salvar no banco de dados
         try {
           const supabase = getSupabaseClient()
-
-          // Preparar dados para inserção no banco
-          const dadosParaBanco = registrosCompletos.map((registro) => ({
-            frota: registro.frota,
-            local: registro.local,
-            tipo_preventiva: registro.tipo_preventiva,
-            data_programada: registro.data_programada,
-            data_realizada: registro.data_realizada || null,
-            situacao: registro.situacao,
-            horario_agendado: registro.horario_agendado,
-            observacao: registro.observacao || null,
-            created_at: registro.created_at,
-            updated_at: registro.updated_at,
+          const dadosParaBanco = registrosCompletos.map((r) => ({
+            frota: r.frota,
+            local: r.local,
+            tipo_preventiva: r.tipo_preventiva,
+            data_programada: r.data_programada,
+            data_realizada: r.data_realizada || null,
+            situacao: r.situacao,
+            horario_agendado: r.horario_agendado,
+            observacao: r.observacao || null,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
           }))
-
           const { data, error } = await supabase.from("maintenance_records").insert(dadosParaBanco).select()
-
-          if (error) {
-            throw error
-          }
-
-          // Sucesso no banco, usar dados retornados
+          if (error) throw error
           setRegistros((prev) => [...data, ...prev])
           return data
-        } catch (dbError) {
-          console.warn("Erro no banco, salvando localmente:", dbError)
-          // Salvar localmente se houver erro no banco
+        } catch (dbError: any) {
+          console.error("Erro ao importar registros para o banco:", dbError)
+          toast({
+            title: "Erro no Banco",
+            description: `Falha ao importar para o banco: ${dbError.message}. Registros salvos localmente.`,
+            variant: "warning",
+          })
           setRegistros((prev) => [...registrosCompletos, ...prev])
           return registrosCompletos
         }
       } else {
-        // Salvar localmente
         setRegistros((prev) => [...registrosCompletos, ...prev])
         return registrosCompletos
       }
     } catch (error) {
-      console.error("Erro ao importar registros:", error)
+      console.error("Erro ao importar:", error)
       throw error
     } finally {
       setCarregando(false)
     }
   }
 
-  // Função auxiliar para obter label do tipo
-  const obterLabelTipo = (valor: string) => {
-    const tipo = tiposPreventiva.find((t) => t.value === valor)
-    return tipo ? tipo.label : valor
-  }
-
-  // Função auxiliar para obter label do local
-  const obterLabelLocal = (valor: string) => {
-    const local = locais.find((l) => l.value === valor)
-    return local ? local.label : valor
-  }
-
-  // Filtrar registros
-  const registrosFiltrados = registros.filter((registro) => {
-    const correspondeTermoBusca =
-      registro.frota.toLowerCase().includes(termoBusca.toLowerCase()) ||
-      registro.local.toLowerCase().includes(termoBusca.toLowerCase()) ||
-      (registro.observacao && registro.observacao.toLowerCase().includes(termoBusca.toLowerCase()))
-
-    const correspondeTipo = filtroTipo === "todos" || registro.tipo_preventiva === filtroTipo
-    const correspondeSituacao = filtroSituacao === "todos" || registro.situacao === filtroSituacao
-    const correspondeLocal = filtroLocal === "todos" || registro.local === filtroLocal
-
-    let correspondeData = true
-    if (dataSelecionada) {
-      try {
-        if (isValid(dataSelecionada)) {
-          const dataFormatada = format(dataSelecionada, "yyyy-MM-dd")
-          correspondeData = registro.data_programada === dataFormatada
+  const parseCsvDate = (dateStr: string | undefined | null): string => {
+    if (!dateStr || typeof dateStr !== "string" || dateStr.trim() === "") return ""
+    try {
+      // Attempt 1: dd/MM/yyyy
+      let dateParts = dateStr.split("/")
+      if (dateParts.length === 3) {
+        const day = Number.parseInt(dateParts[0], 10)
+        const month = Number.parseInt(dateParts[1], 10) - 1 // Month is 0-indexed
+        const year = Number.parseInt(dateParts[2], 10)
+        if (
+          !isNaN(day) &&
+          !isNaN(month) &&
+          !isNaN(year) &&
+          year > 1000 &&
+          year < 3000 &&
+          month >= 0 &&
+          month <= 11 &&
+          day >= 1 &&
+          day <= 31
+        ) {
+          const d = new Date(Date.UTC(year, month, day)) // Use UTC to avoid timezone issues with date-only strings
+          if (isValid(d) && d.getUTCFullYear() === year && d.getUTCMonth() === month && d.getUTCDate() === day) {
+            return format(d, "yyyy-MM-dd")
+          }
         }
-      } catch (error) {
-        console.error("Erro ao comparar datas:", error)
+      }
+
+      // Attempt 2: yyyy-MM-dd (ISO-like but could be just string)
+      dateParts = dateStr.split("-")
+      if (dateParts.length === 3) {
+        const year = Number.parseInt(dateParts[0], 10)
+        const month = Number.parseInt(dateParts[1], 10) - 1
+        const day = Number.parseInt(dateParts[2], 10)
+        if (
+          !isNaN(day) &&
+          !isNaN(month) &&
+          !isNaN(year) &&
+          year > 1000 &&
+          year < 3000 &&
+          month >= 0 &&
+          month <= 11 &&
+          day >= 1 &&
+          day <= 31
+        ) {
+          const d = new Date(Date.UTC(year, month, day)) // Use UTC
+          if (isValid(d) && d.getUTCFullYear() === year && d.getUTCMonth() === month && d.getUTCDate() === day) {
+            return format(d, "yyyy-MM-dd")
+          }
+        }
+      }
+
+      // Attempt 3: Direct parseISO (for full ISO strings, less likely for simple CSV dates)
+      const isoDate = parseISO(dateStr)
+      if (isValid(isoDate)) {
+        return format(isoDate, "yyyy-MM-dd")
+      }
+
+      console.warn(`Data inválida ou formato não reconhecido no CSV: ${dateStr}`)
+      return ""
+    } catch (e) {
+      console.error(`Erro ao parsear data CSV "${dateStr}":`, e)
+      return ""
+    }
+  }
+
+  const getLocalValueFromLabel = (label: string): string => {
+    const searchLabel = label?.toString().trim().toLowerCase() || ""
+    const found = locais.find((l) => l.label.toLowerCase() === searchLabel || l.value.toLowerCase() === searchLabel)
+    return found ? found.value : "LAVADOR" // Default
+  }
+
+  const getTipoPreventivaValueFromLabel = (label: string): string => {
+    const searchLabel = label?.toString().trim().toLowerCase() || ""
+    const found = tiposPreventiva.find(
+      (tp) => tp.label.toLowerCase() === searchLabel || tp.value.toLowerCase() === searchLabel,
+    )
+    return found ? found.value : "lavagem_lubrificacao" // Default
+  }
+
+  const getSituacaoValueFromLabel = (label: string): "PENDENTE" | "ENCERRADO" | "EM_ANDAMENTO" => {
+    const upperLabel = label?.toString().trim().toUpperCase() || ""
+    if (upperLabel === "PENDENTE") return "PENDENTE"
+    if (upperLabel === "ENCERRADO" || upperLabel === "CONCLUÍDO" || upperLabel === "CONCLUIDO") return "ENCERRADO"
+    if (upperLabel === "EM ANDAMENTO" || upperLabel === "ANDAMENTO" || upperLabel === "EM_ANDAMENTO")
+      return "EM_ANDAMENTO"
+    return "PENDENTE" // Default
+  }
+
+  const handleProcessarCsvImport = async () => {
+    if (!arquivoCsv) {
+      toast({ title: "Nenhum arquivo", description: "Selecione um arquivo CSV.", variant: "destructive" })
+      return
+    }
+    try {
+      setCarregando(true)
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          const data = e.target?.result
+          if (!data) throw new Error("Falha ao ler arquivo")
+          const workbook = XLSX.read(data, { type: "binary", cellDates: true }) // cellDates can help with Excel dates
+          const sheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[sheetName]
+          // Using raw: false to get formatted strings if cellDates doesn't work as expected for CSV dates
+          const jsonData = XLSX.utils.sheet_to_json<any>(worksheet, { raw: false, defval: "" })
+
+          if (jsonData.length === 0) {
+            toast({ title: "Arquivo Vazio", description: "O CSV importado não contém dados.", variant: "warning" })
+            setDialogoImportar(false)
+            setArquivoCsv(null)
+            return
+          }
+
+          const expectedHeaders = [
+            "Frota",
+            "Local",
+            "Tipo Preventiva",
+            "Data Programada",
+            "Situação",
+            "Horário Agendado",
+          ] // Minimal expected
+          const actualHeaders = Object.keys(jsonData[0])
+          if (!expectedHeaders.every((header) => actualHeaders.includes(header))) {
+            toast({
+              title: "Cabeçalho Inválido",
+              description: "O CSV não parece ter os cabeçalhos esperados. Verifique o modelo.",
+              variant: "destructive",
+            })
+            setCarregando(false)
+            return
+          }
+
+          const novosRegistrosImportados: Omit<MaintenanceRecord, "id">[] = jsonData
+            .map((row: any, index: number) => {
+              const dataProgramadaStr = row["Data Programada"]?.toString().trim()
+              const dataProgramada = parseCsvDate(dataProgramadaStr)
+
+              const dataRealizadaStr = row["Data Realizada"]?.toString().trim()
+              const dataRealizada = dataRealizadaStr ? parseCsvDate(dataRealizadaStr) : undefined
+
+              if (!row["Frota"]?.toString().trim()) {
+                console.warn(`Linha ${index + 2} do CSV ignorada: Frota ausente.`)
+                return null
+              }
+              if (!dataProgramada) {
+                console.warn(
+                  `Linha ${index + 2} do CSV (${row["Frota"]}) ignorada: Data Programada inválida ou ausente ('${dataProgramadaStr}').`,
+                )
+                return null
+              }
+
+              return {
+                frota: row["Frota"].toString().trim(),
+                local: getLocalValueFromLabel(row["Local"]?.toString().trim()),
+                tipo_preventiva: getTipoPreventivaValueFromLabel(row["Tipo Preventiva"]?.toString().trim()),
+                data_programada: dataProgramada,
+                data_realizada: dataRealizada,
+                situacao: getSituacaoValueFromLabel(row["Situação"]?.toString().trim()),
+                horario_agendado: normalizarHorario(row["Horário Agendado"]?.toString().trim()),
+                observacao: row["Observação"]?.toString().trim() || "",
+              }
+            })
+            .filter((record) => record !== null) as Omit<MaintenanceRecord, "id">[]
+
+          if (novosRegistrosImportados.length === 0 && jsonData.length > 0) {
+            toast({
+              title: "Dados Inválidos",
+              description:
+                "Nenhum registro válido encontrado no CSV após processamento. Verifique os formatos de data (dd/MM/yyyy ou yyyy-MM-dd) e os valores obrigatórios.",
+              variant: "warning",
+            })
+          } else if (novosRegistrosImportados.length > 0) {
+            await importarRegistros(novosRegistrosImportados)
+            toast({ title: "Sucesso", description: `${novosRegistrosImportados.length} registros importados do CSV.` })
+          }
+
+          setDialogoImportar(false)
+          setArquivoCsv(null)
+        } catch (parseError) {
+          console.error("Erro ao processar CSV:", parseError)
+          const msg = parseError instanceof Error ? parseError.message : "Erro desconhecido ao processar CSV."
+          toast({
+            title: "Erro no CSV",
+            description: `Falha ao processar o arquivo CSV. ${msg}`,
+            variant: "destructive",
+          })
+        } finally {
+          setCarregando(false)
+        }
+      }
+      reader.onerror = () => {
+        toast({ title: "Erro de Leitura", description: "Não foi possível ler o arquivo.", variant: "destructive" })
+        setCarregando(false)
+      }
+      reader.readAsBinaryString(arquivoCsv)
+    } catch (error) {
+      console.error("Erro ao iniciar importação:", error)
+      toast({ title: "Erro", description: "Ocorreu um erro ao iniciar a importação.", variant: "destructive" })
+      setCarregando(false)
+    }
+  }
+
+  const obterLabelTipo = (valor: string) => tiposPreventiva.find((t) => t.value === valor)?.label || valor
+  const obterLabelLocal = (valor: string) => locais.find((l) => l.value === valor)?.label || valor
+
+  const registrosFiltrados = registros.filter((r) => {
+    const busca = termoBusca.toLowerCase()
+    const correspondeBusca =
+      r.frota.toLowerCase().includes(busca) ||
+      r.local.toLowerCase().includes(busca) ||
+      (r.observacao && r.observacao.toLowerCase().includes(busca))
+    const correspondeTipo = filtroTipo === "todos" || r.tipo_preventiva === filtroTipo
+    const correspondeSituacao = filtroSituacao === "todos" || r.situacao === filtroSituacao
+    const correspondeLocal = filtroLocal === "todos" || r.local === filtroLocal
+    let correspondeData = true
+    if (dataSelecionada && isValid(dataSelecionada)) {
+      try {
+        correspondeData = r.data_programada === format(dataSelecionada, "yyyy-MM-dd")
+      } catch (e) {
         correspondeData = false
       }
     }
-
-    return correspondeTermoBusca && correspondeTipo && correspondeSituacao && correspondeLocal && correspondeData
+    return correspondeBusca && correspondeTipo && correspondeSituacao && correspondeLocal && correspondeData
   })
 
-  // Renderizar status com cores
   const renderizarStatus = (situacao: string) => {
-    switch (situacao) {
-      case "PENDENTE":
-        return (
-          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-red-50 to-red-100 text-red-700 border border-red-200 shadow-sm">
-            <Clock className="w-3.5 h-3.5 mr-1.5 text-red-600" />
-            PENDENTE
-          </span>
-        )
-      case "ENCERRADO":
-        return (
-          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-emerald-50 to-green-100 text-emerald-700 border border-emerald-200 shadow-sm">
-            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
-            ENCERRADO
-          </span>
-        )
-      case "EM_ANDAMENTO":
-        return (
-          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-amber-50 to yellow-100 text-amber-700 border border-amber-200 shadow-sm">
-            <PlayCircle className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
-            ANDAMENTO
-          </span>
-        )
-      default:
-        return (
-          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 border border-gray-200 shadow-sm">
-            {situacao}
-          </span>
-        )
-    }
+    const commonClasses =
+      "inline-flex items-center px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-semibold border shadow-sm"
+    if (situacao === "PENDENTE")
+      return (
+        <span className={`${commonClasses} bg-gradient-to-r from-red-50 to-red-100 text-red-700 border-red-200`}>
+          <Clock className="w-3.5 h-3.5 mr-1.5 text-red-600" />
+          PENDENTE
+        </span>
+      )
+    if (situacao === "ENCERRADO")
+      return (
+        <span
+          className={`${commonClasses} bg-gradient-to-r from-emerald-50 to-green-100 text-emerald-700 border-emerald-200`}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+          ENCERRADO
+        </span>
+      )
+    if (situacao === "EM_ANDAMENTO")
+      return (
+        <span
+          className={`${commonClasses} bg-gradient-to-r from-amber-50 to-yellow-100 text-amber-700 border-amber-200`}
+        >
+          <PlayCircle className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
+          ANDAMENTO
+        </span>
+      )
+    return (
+      <span className={`${commonClasses} bg-gradient-to-r from-gray-50 to-gray-100 text-gray-700 border-gray-200`}>
+        {situacao}
+      </span>
+    )
   }
-
-  // Renderizar observação com cores
   const renderizarObservacao = (observacao?: string) => {
     if (!observacao) return ""
-
-    if (observacao.includes("TROCA DE ÓLEO")) {
-      return <span className="text-green-600 font-medium">{observacao}</span>
-    } else if (observacao.includes("EM VIAGEM")) {
+    if (observacao.includes("TROCA DE ÓLEO")) return <span className="text-green-600 font-medium">{observacao}</span>
+    if (observacao.includes("EM VIAGEM") || observacao.includes("OFICINA") || observacao.includes("Gabelim"))
       return <span className="text-red-600 font-medium">{observacao}</span>
-    } else if (observacao.includes("OFICINA") || observacao.includes("Gabelim")) {
-      return <span className="text-red-600 font-medium">{observacao}</span>
-    }
-
     return <span className="text-red-600">{observacao}</span>
   }
-
-  // Renderizar indicador de status de conexão
   const renderizarStatusConexao = () => {
-    switch (statusConexao) {
-      case "conectando":
-        return (
-          <div className="flex items-center gap-2 text-yellow-600">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-sm">Conectando...</span>
-          </div>
-        )
-      case "conectado":
-        return (
-          <div className="flex items-center gap-2 text-green-600">
-            <Wifi className="h-4 w-4" />
-            <span className="text-sm">Online</span>
-          </div>
-        )
-      case "erro":
-        return (
-          <div className="flex items-center gap-2 text-red-600">
-            <WifiOff className="h-4 w-4" />
-            <span className="text-sm">Tabela não encontrada</span>
-          </div>
-        )
-      case "offline":
-        return (
-          <div className="flex items-center gap-2 text-gray-600">
-            <WifiOff className="h-4 w-4" />
-            <span className="text-sm">Offline</span>
-          </div>
-        )
-      default:
-        return null
-    }
+    const iconClasses = "h-4 w-4"
+    if (statusConexao === "conectando")
+      return (
+        <div className="flex items-center gap-2 text-yellow-600">
+          <Loader2 className={`${iconClasses} animate-spin`} />
+          <span className="text-xs sm:text-sm">Conectando...</span>
+        </div>
+      )
+    if (statusConexao === "conectado")
+      return (
+        <div className="flex items-center gap-2 text-green-600">
+          <Wifi className={iconClasses} />
+          <span className="text-xs sm:text-sm">Online</span>
+        </div>
+      )
+    if (statusConexao === "erro")
+      return (
+        <div className="flex items-center gap-2 text-red-600">
+          <WifiOff className={iconClasses} />
+          <span className="text-xs sm:text-sm">Tabela não encontrada</span>
+        </div>
+      )
+    if (statusConexao === "offline")
+      return (
+        <div className="flex items-center gap-2 text-gray-600">
+          <WifiOff className={iconClasses} />
+          <span className="text-xs sm:text-sm">Offline</span>
+        </div>
+      )
+    return null
   }
 
-  // Dados para gráficos
+  const colorsForCharts = {
+    bgPage: "#1A202C",
+    bgHeader: "#2D3748",
+    bgCard: "#252E3A",
+    textTitle: "#FFFFFF",
+    textPrimary: "#E2E8F0",
+    textSecondary: "#A0AEC0",
+    accentGreen: "#38A169",
+    accentYellow: "#D69E2E",
+    accentRed: "#E53E3E",
+    borderCard: "#3A475A",
+    gridLines: "rgba(100, 116, 139, 0.15)",
+    tableHeaderBg: "#2c3e50",
+    tableEvenRowBg: "#252E3A",
+    tableOddRowBg: "#1F2937",
+    tableBorder: "#4A5568",
+  }
+
   const dadosGraficoSituacao = [
     {
       name: "Pendentes",
       value: registrosFiltrados.filter((r) => r.situacao === "PENDENTE").length,
-      color: "#dc2626", // Vermelho mais vibrante
+      color: colorsForCharts.accentRed,
     },
     {
       name: "Encerrados",
       value: registrosFiltrados.filter((r) => r.situacao === "ENCERRADO").length,
-      color: "#059669", // Verde esmeralda
+      color: colorsForCharts.accentGreen,
     },
     {
       name: "Andamento",
       value: registrosFiltrados.filter((r) => r.situacao === "EM_ANDAMENTO").length,
-      color: "#d97706", // Âmbar mais forte
+      color: colorsForCharts.accentYellow,
     },
   ]
-
   const dadosGraficoTipo = tiposPreventiva.map((tipo) => ({
     name: tipo.label,
     value: registrosFiltrados.filter((r) => r.tipo_preventiva === tipo.value).length,
@@ -1000,23 +1492,22 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <img
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-w5r6EZIgd51nAwt9Zn5bLhga0cn9hX.png"
-                alt="Branco Peres Logo"
+                src="/company-logo.png"
+                alt="Company Logo"
                 className="h-12 w-12 lg:h-16 lg:w-16 object-contain drop-shadow-lg"
                 style={{ filter: "drop-shadow(0 0 8px rgba(255,255,255,0.3))" }}
               />
               <div>
-                <CardTitle className="text-xl lg:text-3xl font-bold text-white">
+                <CardTitle className="text-xl sm:text-2xl lg:text-3xl font-bold text-white">
                   Controle de Lavagem e Lubrificação Logística
                 </CardTitle>
-                <CardDescription className="text-gray-300 text-sm lg:text-lg">
+                <CardDescription className="text-gray-300 text-sm sm:text-base lg:text-lg">
                   Branco Peres Agro S/A - {format(new Date(), "dd/MM/yyyy")}
                 </CardDescription>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {renderizarStatusConexao()}
-
               {statusConexao !== "conectado" ? (
                 <Button
                   variant="outline"
@@ -1028,7 +1519,7 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Database className="mr-2 h-4 w-4" />
-                  )}
+                  )}{" "}
                   Conectar BD
                 </Button>
               ) : (
@@ -1042,7 +1533,7 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <RefreshCw className="mr-2 h-4 w-4" />
-                  )}
+                  )}{" "}
                   Sincronizar
                 </Button>
               )}
@@ -1059,13 +1550,12 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
               <AlertDescription>{erro}</AlertDescription>
             </Alert>
           )}
-
           {!bdConectado && (
             <Alert className="m-4 bg-blue-50 border-blue-200">
               <AlertCircle className="h-4 w-4 text-blue-600" />
               <AlertTitle className="text-blue-800">Modo Offline</AlertTitle>
               <AlertDescription className="text-blue-700">
-                Sistema funcionando com dados locais. Para conectar ao banco de dados, execute o script SQL fornecido.
+                Sistema funcionando com dados locais. Para conectar ao banco, execute o script SQL.
               </AlertDescription>
             </Alert>
           )}
@@ -1096,10 +1586,8 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
             </div>
 
             <TabsContent value="tabela" className="p-0">
-              {/* Filtros e Controles */}
               <div className="p-4 bg-gray-50 border-b">
                 <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-                  {/* Busca */}
                   <div className="flex-1 relative max-w-md">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
                     <Input
@@ -1110,10 +1598,7 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                       onChange={(e) => setTermoBusca(e.target.value)}
                     />
                   </div>
-
-                  {/* Filtros */}
                   <div className="flex flex-wrap gap-2">
-                    {/* Filtro Data */}
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="h-9">
@@ -1131,38 +1616,32 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                         />
                       </PopoverContent>
                     </Popover>
-
-                    {/* Filtro Local */}
                     <Select value={filtroLocal} onValueChange={setFiltroLocal}>
                       <SelectTrigger className="w-[140px] h-9">
                         <SelectValue placeholder="Local" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="todos">Todos os locais</SelectItem>
-                        {locais.map((local) => (
-                          <SelectItem key={local.value} value={local.value}>
-                            {local.label}
+                        <SelectItem value="todos">Todos locais</SelectItem>
+                        {locais.map((l) => (
+                          <SelectItem key={l.value} value={l.value}>
+                            {l.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-
-                    {/* Filtro Tipo */}
                     <Select value={filtroTipo} onValueChange={setFiltroTipo}>
                       <SelectTrigger className="w-[160px] h-9">
                         <SelectValue placeholder="Tipo" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="todos">Todos os tipos</SelectItem>
-                        {tiposPreventiva.map((tipo) => (
-                          <SelectItem key={tipo.value} value={tipo.value}>
-                            {tipo.label}
+                        <SelectItem value="todos">Todos tipos</SelectItem>
+                        {tiposPreventiva.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>
+                            {t.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-
-                    {/* Filtro Situação */}
                     <Select value={filtroSituacao} onValueChange={setFiltroSituacao}>
                       <SelectTrigger className="w-[140px] h-9">
                         <SelectValue placeholder="Situação" />
@@ -1174,8 +1653,6 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                         <SelectItem value="ENCERRADO">Encerrado</SelectItem>
                       </SelectContent>
                     </Select>
-
-                    {/* Botão Limpar Filtros */}
                     <Button
                       variant="outline"
                       size="sm"
@@ -1192,8 +1669,6 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                       Limpar
                     </Button>
                   </div>
-
-                  {/* Ações */}
                   <div className="flex flex-wrap gap-2">
                     <Button variant="outline" size="sm" className="h-9" onClick={() => setDialogoAdicionar(true)}>
                       <Plus className="mr-2 h-4 w-4" />
@@ -1204,19 +1679,12 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                       size="sm"
                       className="h-9 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200"
                       onClick={() => {
-                        if (
-                          window.confirm(
-                            "Tem certeza que deseja excluir TODOS os registros? Esta ação não pode ser desfeita.",
-                          )
-                        ) {
-                          limparTodosRegistros()
-                        }
+                        if (window.confirm("Excluir TODOS os registros?")) limparTodosRegistros()
                       }}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
                       Limpar Tudo
                     </Button>
-
                     <Button
                       variant="outline"
                       size="sm"
@@ -1226,7 +1694,6 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                       <Upload className="mr-2 h-4 w-4" />
                       Importar
                     </Button>
-
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -1252,11 +1719,11 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                           Exportar Excel
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={exportarPDF}
-                          disabled={exportando || registrosFiltrados.length === 0}
+                          onClick={exportarImagemPowerBIFuturisticAgro}
+                          disabled={exportando || registrosFiltrados.length === 0 || !logoImageRef.current}
                         >
                           <FileText className="mr-2 h-4 w-4" />
-                          Exportar PDF
+                          Dashboard Futurístico Agro
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={exportarModeloExcel} disabled={exportando}>
                           <FileSpreadsheet className="mr-2 h-4 w-4" />
@@ -1267,39 +1734,40 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                   </div>
                 </div>
               </div>
-
-              {/* Tabela */}
               <div ref={tabelaRef} className="overflow-x-auto">
                 <div className="bg-[#1e2a38] p-4 flex items-center gap-4">
-                  <img
-                    src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/logo-w5r6EZIgd51nAwt9Zn5bLhga0cn9hX.png"
-                    alt="Branco Peres Logo"
-                    className="h-12 w-12 object-contain"
-                  />
+                  <img src="/company-logo.png" alt="Company Logo" className="h-12 w-12 object-contain" />
                   <div>
-                    <h2 className="text-lg font-bold text-white">Controle de Lavagem e Lubrificação Logística</h2>
-                    <p className="text-gray-300 text-sm">Branco Peres Agro S/A - {format(new Date(), "dd/MM/yyyy")}</p>
+                    <h2 className="text-base sm:text-lg font-bold text-white">
+                      Controle de Lavagem e Lubrificação Logística
+                    </h2>
+                    <p className="text-gray-300 text-xs sm:text-sm">
+                      Branco Peres Agro S/A - {format(new Date(), "dd/MM/yyyy")}
+                    </p>
                   </div>
                 </div>
-
                 <table className="w-full border-collapse min-w-[800px]">
                   <thead>
                     <tr className="bg-[#2c3e50] text-white">
-                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">Frota</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">Local</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">
+                      <th className="border border-gray-600 px-3 py-2 text-xs sm:text-sm font-medium">Frota</th>
+                      <th className="border border-gray-600 px-3 py-2 text-xs sm:text-sm font-medium">Local</th>
+                      <th className="border border-gray-600 px-3 py-2 text-xs sm:text-sm font-medium">
                         Tipo Preventiva
                       </th>
-                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">
+                      <th className="border border-gray-600 px-3 py-2 text-xs sm:text-sm font-medium">
                         Data Programada
                       </th>
-                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">Data Realizada</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">Situação</th>
-                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">
+                      <th className="border border-gray-600 px-3 py-2 text-xs sm:text-sm font-medium">
+                        Data Realizada
+                      </th>
+                      <th className="border border-gray-600 px-3 py-2 text-xs sm:text-sm font-medium">Situação</th>
+                      <th className="border border-gray-600 px-3 py-2 text-xs sm:text-sm font-medium">
                         Horário Agendado
                       </th>
-                      <th className="border border-gray-600 px-3 py-2 text-left text-sm font-medium">Observação</th>
-                      <th className="border border-gray-600 px-3 py-2 text-center text-sm font-medium">Ações</th>
+                      <th className="border border-gray-600 px-3 py-2 text-xs sm:text-sm font-medium">Observação</th>
+                      <th className="border border-gray-600 px-3 py-2 text-center text-xs sm:text-sm font-medium">
+                        Ações
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1317,29 +1785,29 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                         </td>
                       </tr>
                     ) : (
-                      registrosFiltrados.map((registro, index) => (
-                        <tr key={registro.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900 font-medium">
-                            {registro.frota}
+                      registrosFiltrados.map((r, idx) => (
+                        <tr key={r.id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="border border-gray-300 px-3 py-2 text-xs sm:text-sm text-gray-900 font-medium">
+                            {r.frota}
                           </td>
-                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
-                            {obterLabelLocal(registro.local)}
+                          <td className="border border-gray-300 px-3 py-2 text-xs sm:text-sm text-gray-900">
+                            {obterLabelLocal(r.local)}
                           </td>
-                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
-                            {obterLabelTipo(registro.tipo_preventiva)}
+                          <td className="border border-gray-300 px-3 py-2 text-xs sm:text-sm text-gray-900">
+                            {obterLabelTipo(r.tipo_preventiva)}
                           </td>
-                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
-                            {formatDateSafe(registro.data_programada)}
+                          <td className="border border-gray-300 px-3 py-2 text-xs sm:text-sm text-gray-900">
+                            {formatDateSafe(r.data_programada)}
                           </td>
-                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
-                            {formatDateSafe(registro.data_realizada)}
+                          <td className="border border-gray-300 px-3 py-2 text-xs sm:text-sm text-gray-900">
+                            {formatDateSafe(r.data_realizada)}
                           </td>
-                          <td className="border border-gray-300 px-3 py-2">{renderizarStatus(registro.situacao)}</td>
-                          <td className="border border-gray-300 px-3 py-2 text-sm text-gray-900">
-                            {registro.horario_agendado}
+                          <td className="border border-gray-300 px-3 py-2">{renderizarStatus(r.situacao)}</td>
+                          <td className="border border-gray-300 px-3 py-2 text-xs sm:text-sm text-gray-900">
+                            {r.horario_agendado}
                           </td>
                           <td className="border border-gray-300 px-3 py-2 text-sm">
-                            {renderizarObservacao(registro.observacao)}
+                            {renderizarObservacao(r.observacao)}
                           </td>
                           <td className="border border-gray-300 px-3 py-2 text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -1350,55 +1818,53 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                                     size="icon"
                                     className="h-8 w-8 text-gray-700 hover:bg-gray-100 border border-gray-300"
                                   >
-                                    {atualizandoStatus === registro.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin text-gray-700" />
+                                    {atualizandoStatus === r.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
-                                      <MoreHorizontal className="h-4 w-4 text-gray-700" />
+                                      <MoreHorizontal className="h-4 w-4" />
                                     )}
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
-                                    onClick={() => alterarStatus(registro.id, "PENDENTE")}
-                                    disabled={registro.situacao === "PENDENTE" || atualizandoStatus === registro.id}
+                                    onClick={() => alterarStatus(r.id, "PENDENTE")}
+                                    disabled={r.situacao === "PENDENTE" || atualizandoStatus === r.id}
                                   >
                                     <PauseCircle className="mr-2 h-4 w-4" />
                                     Pendente
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() => alterarStatus(registro.id, "EM_ANDAMENTO")}
-                                    disabled={registro.situacao === "EM_ANDAMENTO" || atualizandoStatus === registro.id}
+                                    onClick={() => alterarStatus(r.id, "EM_ANDAMENTO")}
+                                    disabled={r.situacao === "EM_ANDAMENTO" || atualizandoStatus === r.id}
                                   >
                                     <PlayCircle className="mr-2 h-4 w-4" />
                                     Andamento
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() => alterarStatus(registro.id, "ENCERRADO")}
-                                    disabled={registro.situacao === "ENCERRADO" || atualizandoStatus === registro.id}
+                                    onClick={() => alterarStatus(r.id, "ENCERRADO")}
+                                    disabled={r.situacao === "ENCERRADO" || atualizandoStatus === r.id}
                                   >
                                     <CheckCircle2 className="mr-2 h-4 w-4" />
                                     Encerrado
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
-
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-blue-600 hover:bg-blue-50 border border-gray-300"
                                 onClick={() => {
-                                  setRegistroSelecionado(registro)
+                                  setRegistroSelecionado(r)
                                   setDialogoEditar(true)
                                 }}
                               >
                                 <SlidersHorizontal className="h-4 w-4" />
                               </Button>
-
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-red-600 hover:bg-red-50 border border-gray-300"
-                                onClick={() => excluirRegistro(registro.id)}
+                                onClick={() => excluirRegistro(r.id)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -1416,51 +1882,47 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">Total de Registros</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-medium">Total Registros</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{registrosFiltrados.length}</div>
+                    <div className="text-xl sm:text-2xl font-bold">{registrosFiltrados.length}</div>
                   </CardContent>
                 </Card>
-
                 <Card className="border-l-4 border-l-red-500 shadow-md hover:shadow-lg transition-shadow">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-700">Pendentes</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-medium text-gray-700">Pendentes</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-red-600">
+                    <div className="text-xl sm:text-2xl font-bold text-red-600">
                       {registrosFiltrados.filter((r) => r.situacao === "PENDENTE").length}
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card className="border-l-4 border-l-amber-500 shadow-md hover:shadow-lg transition-shadow">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-700">Andamento</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-medium text-gray-700">Andamento</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-amber-600">
+                    <div className="text-xl sm:text-2xl font-bold text-amber-600">
                       {registrosFiltrados.filter((r) => r.situacao === "EM_ANDAMENTO").length}
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card className="border-l-4 border-l-emerald-500 shadow-md hover:shadow-lg transition-shadow">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-700">Concluídos</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-medium text-gray-700">Concluídos</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-emerald-600">
+                    <div className="text-xl sm:text-2xl font-bold text-emerald-600">
                       {registrosFiltrados.filter((r) => r.situacao === "ENCERRADO").length}
                     </div>
                   </CardContent>
                 </Card>
               </div>
-
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Distribuição por Situação</CardTitle>
+                    <CardTitle className="text-base sm:text-lg font-semibold">Distribuição por Situação</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="h-[300px]">
@@ -1486,10 +1948,9 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                     </div>
                   </CardContent>
                 </Card>
-
                 <Card>
                   <CardHeader>
-                    <CardTitle>Distribuição por Tipo</CardTitle>
+                    <CardTitle className="text-base sm:text-lg font-semibold">Distribuição por Tipo</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="h-[300px]">
@@ -1507,7 +1968,6 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
                 </Card>
               </div>
             </TabsContent>
-
             <TabsContent value="ia-extracao" className="p-4">
               <Card>
                 <CardHeader>
@@ -1525,120 +1985,57 @@ INSERT INTO maintenance_records (frota, local, tipo_preventiva, data_programada,
         </CardContent>
       </Card>
 
-      {/* Dialog para mostrar SQL */}
-      <Dialog open={dialogoInicializarBd} onOpenChange={setDialogoInicializarBd}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Script SQL para Criar Tabela</DialogTitle>
-            <DialogDescription>
-              Execute este script SQL no seu banco de dados Supabase para criar a tabela necessária.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4">
-            <div className="bg-gray-100 p-4 rounded-lg text-sm font-mono overflow-x-auto">
-              <pre className="whitespace-pre-wrap text-xs">
-                {`-- Script SQL para criar a tabela maintenance_records
-CREATE TABLE IF NOT EXISTS maintenance_records (
-   id SERIAL PRIMARY KEY,
-   frota VARCHAR(50) NOT NULL,
-   local VARCHAR(100) NOT NULL,
-   tipo_preventiva VARCHAR(100) NOT NULL,
-   data_programada DATE NOT NULL,
-   data_realizada DATE,
-   situacao VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' 
-       CHECK (situacao IN ('PENDENTE', 'ENCERRADO', 'EM_ANDAMENTO')),
-   horario_agendado TIME NOT NULL,
-   observacao TEXT,
-   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Criar índices para melhor performance
-CREATE INDEX IF NOT EXISTS idx_maintenance_records_frota 
-   ON maintenance_records(frota);
-CREATE INDEX IF NOT EXISTS idx_maintenance_records_situacao 
-   ON maintenance_records(situacao);
-CREATE INDEX IF NOT EXISTS idx_maintenance_records_data_programada 
-   ON maintenance_records(data_programada);
-
--- Inserir dados de exemplo
-INSERT INTO maintenance_records 
-   (frota, local, tipo_preventiva, data_programada, situacao, horario_agendado, observacao) 
-VALUES
-   ('6597', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-26', 'PENDENTE', '04:00', 'TROCA DE ÓLEO'),
-   ('8805', 'LAVADOR', 'lavagem_lubrificacao', '2025-01-27', 'PENDENTE', '08:00', 'EM VIAGEM'),
-   ('4597', 'LUBRIFICADOR', 'lubrificacao', '2025-01-28', 'EM_ANDAMENTO', '14:30', 'Aguardando peças'),
-   ('6602', 'MECANICO', 'troca_oleo', '2025-01-25', 'ENCERRADO', '02:00', 'Concluído com sucesso');`}
-              </pre>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogoInicializarBd(false)}>
-              Fechar
-            </Button>
-            <Button onClick={copiarSQL}>
-              <Copy className="mr-2 h-4 w-4" />
-              Copiar SQL
-            </Button>
-            <Button onClick={tentarConectarBanco}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Tentar Conectar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog para adicionar registro */}
+      {/* Diálogo para Adicionar Novo Registro */}
       <Dialog open={dialogoAdicionar} onOpenChange={setDialogoAdicionar}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[525px]">
           <DialogHeader>
-            <DialogTitle>Adicionar Registro</DialogTitle>
-            <DialogDescription>
-              Preencha os dados para adicionar um novo registro de lavagem e lubrificação.
+            <DialogTitle className="text-lg sm:text-xl font-semibold">Adicionar Novo Registro</DialogTitle>
+            <DialogDescription className="text-sm sm:text-base text-muted-foreground">
+              Preencha os campos abaixo para adicionar uma nova manutenção.
             </DialogDescription>
           </DialogHeader>
-
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="frota">Frota *</Label>
-                <Input
-                  id="frota"
-                  value={novoRegistro.frota}
-                  onChange={(e) => setNovoRegistro({ ...novoRegistro, frota: e.target.value })}
-                  placeholder="Ex: 6597"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="local">Local *</Label>
-                <Select
-                  value={novoRegistro.local}
-                  onValueChange={(value) => setNovoRegistro({ ...novoRegistro, local: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o local" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locais.map((local) => (
-                      <SelectItem key={local.value} value={local.value}>
-                        {local.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="frota" className="text-right text-xs sm:text-sm">
+                Frota
+              </Label>
+              <Input
+                id="frota"
+                value={novoRegistro.frota}
+                onChange={(e) => setNovoRegistro({ ...novoRegistro, frota: e.target.value })}
+                className="col-span-3"
+                placeholder="Ex: 6597"
+              />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tipo_preventiva">Tipo Preventiva *</Label>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="local" className="text-right text-xs sm:text-sm">
+                Local
+              </Label>
+              <Select
+                value={novoRegistro.local}
+                onValueChange={(value) => setNovoRegistro({ ...novoRegistro, local: value })}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Selecione o local" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locais.map((local) => (
+                    <SelectItem key={local.value} value={local.value}>
+                      {local.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="tipo_preventiva" className="text-right text-xs sm:text-sm">
+                Tipo Preventiva
+              </Label>
               <Select
                 value={novoRegistro.tipo_preventiva}
                 onValueChange={(value) => setNovoRegistro({ ...novoRegistro, tipo_preventiva: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1650,130 +2047,125 @@ VALUES
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="data_programada">Data Programada *</Label>
-                <Input
-                  id="data_programada"
-                  type="date"
-                  value={novoRegistro.data_programada}
-                  onChange={(e) => setNovoRegistro({ ...novoRegistro, data_programada: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="data_realizada">Data Realizada</Label>
-                <Input
-                  id="data_realizada"
-                  type="date"
-                  value={novoRegistro.data_realizada || ""}
-                  onChange={(e) => setNovoRegistro({ ...novoRegistro, data_realizada: e.target.value || undefined })}
-                />
-              </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="data_programada" className="text-right text-xs sm:text-sm">
+                Data Programada
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="col-span-3 justify-start font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {novoRegistro.data_programada ? (
+                      formatDateSafe(novoRegistro.data_programada)
+                    ) : (
+                      <span>Escolha uma data</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={novoRegistro.data_programada ? parseISO(novoRegistro.data_programada) : undefined}
+                    onSelect={(date) =>
+                      setNovoRegistro({
+                        ...novoRegistro,
+                        data_programada: date ? format(date, "yyyy-MM-dd") : "",
+                      })
+                    }
+                    initialFocus
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="horario_agendado">Horário Agendado *</Label>
-                <Input
-                  id="horario_agendado"
-                  type="time"
-                  value={novoRegistro.horario_agendado}
-                  onChange={(e) => setNovoRegistro({ ...novoRegistro, horario_agendado: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="situacao">Situação</Label>
-                <Select
-                  value={novoRegistro.situacao}
-                  onValueChange={(value: "PENDENTE" | "ENCERRADO" | "EM_ANDAMENTO") =>
-                    setNovoRegistro({ ...novoRegistro, situacao: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a situação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="PENDENTE">PENDENTE</SelectItem>
-                    <SelectItem value="EM_ANDAMENTO">ANDAMENTO</SelectItem>
-                    <SelectItem value="ENCERRADO">ENCERRADO</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="observacao">Observação</Label>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="horario_agendado" className="text-right text-xs sm:text-sm">
+                Horário Agendado
+              </Label>
               <Input
+                id="horario_agendado"
+                type="time"
+                value={novoRegistro.horario_agendado}
+                onChange={(e) => setNovoRegistro({ ...novoRegistro, horario_agendado: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="observacao" className="text-right text-xs sm:text-sm">
+                Observação
+              </Label>
+              <Textarea
                 id="observacao"
-                value={novoRegistro.observacao || ""}
+                value={novoRegistro.observacao}
                 onChange={(e) => setNovoRegistro({ ...novoRegistro, observacao: e.target.value })}
-                placeholder="Observações adicionais"
+                className="col-span-3"
+                placeholder="Detalhes adicionais"
               />
             </div>
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogoAdicionar(false)}>
-              Cancelar
-            </Button>
+            <DialogClose asChild>
+              <Button variant="outline">Cancelar</Button>
+            </DialogClose>
             <Button onClick={adicionarRegistro} disabled={carregando}>
-              {carregando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Adicionar"}
+              {carregando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Salvar Registro"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Dialog para editar registro */}
-      <Dialog open={dialogoEditar} onOpenChange={setDialogoEditar}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Editar Registro</DialogTitle>
-            <DialogDescription>Atualize os dados do registro selecionado.</DialogDescription>
-          </DialogHeader>
-
-          {registroSelecionado && (
+      {/* Diálogo para Editar Registro */}
+      {registroSelecionado && dialogoEditar && (
+        <Dialog open={dialogoEditar} onOpenChange={setDialogoEditar}>
+          <DialogContent className="sm:max-w-[525px]">
+            <DialogHeader>
+              <DialogTitle className="text-lg sm:text-xl font-semibold">Editar Registro</DialogTitle>
+              <DialogDescription className="text-sm sm:text-base text-muted-foreground">
+                Modifique os campos abaixo para atualizar a manutenção.
+              </DialogDescription>
+            </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-frota">Frota *</Label>
-                  <Input
-                    id="edit-frota"
-                    value={registroSelecionado.frota}
-                    onChange={(e) => setRegistroSelecionado({ ...registroSelecionado, frota: e.target.value })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-local">Local *</Label>
-                  <Select
-                    value={registroSelecionado.local}
-                    onValueChange={(value) => setRegistroSelecionado({ ...registroSelecionado, local: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o local" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locais.map((local) => (
-                        <SelectItem key={local.value} value={local.value}>
-                          {local.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-frota" className="text-right text-xs sm:text-sm">
+                  Frota
+                </Label>
+                <Input
+                  id="edit-frota"
+                  value={registroSelecionado.frota}
+                  onChange={(e) => setRegistroSelecionado({ ...registroSelecionado, frota: e.target.value })}
+                  className="col-span-3"
+                />
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-tipo_preventiva">Tipo Preventiva *</Label>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-local" className="text-right text-xs sm:text-sm">
+                  Local
+                </Label>
+                <Select
+                  value={registroSelecionado.local}
+                  onValueChange={(value) => setRegistroSelecionado({ ...registroSelecionado, local: value })}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locais.map((local) => (
+                      <SelectItem key={local.value} value={local.value}>
+                        {local.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-tipo_preventiva" className="text-right text-xs sm:text-sm">
+                  Tipo Preventiva
+                </Label>
                 <Select
                   value={registroSelecionado.tipo_preventiva}
                   onValueChange={(value) => setRegistroSelecionado({ ...registroSelecionado, tipo_preventiva: value })}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tipo" />
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {tiposPreventiva.map((tipo) => (
@@ -1784,174 +2176,124 @@ VALUES
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-data_programada">Data Programada *</Label>
-                  <Input
-                    id="edit-data_programada"
-                    type="date"
-                    value={registroSelecionado.data_programada}
-                    onChange={(e) =>
-                      setRegistroSelecionado({ ...registroSelecionado, data_programada: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-data_realizada">Data Realizada</Label>
-                  <Input
-                    id="edit-data_realizada"
-                    type="date"
-                    value={registroSelecionado.data_realizada || ""}
-                    onChange={(e) =>
-                      setRegistroSelecionado({ ...registroSelecionado, data_realizada: e.target.value || undefined })
-                    }
-                  />
-                </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-data_programada" className="text-right text-xs sm:text-sm">
+                  Data Programada
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="col-span-3 justify-start font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {registroSelecionado.data_programada ? (
+                        formatDateSafe(registroSelecionado.data_programada)
+                      ) : (
+                        <span>Escolha data</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={
+                        registroSelecionado.data_programada ? parseISO(registroSelecionado.data_programada) : undefined
+                      }
+                      onSelect={(date) =>
+                        setRegistroSelecionado({
+                          ...registroSelecionado,
+                          data_programada: date ? format(date, "yyyy-MM-dd") : "",
+                        })
+                      }
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-horario_agendado">Horário Agendado *</Label>
-                  <Input
-                    id="edit-horario_agendado"
-                    type="time"
-                    value={registroSelecionado.horario_agendado}
-                    onChange={(e) =>
-                      setRegistroSelecionado({ ...registroSelecionado, horario_agendado: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="edit-situacao">Situação</Label>
-                  <Select
-                    value={registroSelecionado.situacao}
-                    onValueChange={(value: "PENDENTE" | "ENCERRADO" | "EM_ANDAMENTO") =>
-                      setRegistroSelecionado({
-                        ...registroSelecionado,
-                        situacao: value,
-                        data_realizada:
-                          value === "ENCERRADO" ? format(new Date(), "yyyy-MM-dd") : registroSelecionado.data_realizada,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a situação" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PENDENTE">PENDENTE</SelectItem>
-                      <SelectItem value="EM_ANDAMENTO">ANDAMENTO</SelectItem>
-                      <SelectItem value="ENCERRADO">ENCERRADO</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-observacao">Observação</Label>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-horario_agendado" className="text-right text-xs sm:text-sm">
+                  Horário
+                </Label>
                 <Input
+                  id="edit-horario_agendado"
+                  type="time"
+                  value={registroSelecionado.horario_agendado}
+                  onChange={(e) => setRegistroSelecionado({ ...registroSelecionado, horario_agendado: e.target.value })}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="edit-observacao" className="text-right text-xs sm:text-sm">
+                  Observação
+                </Label>
+                <Textarea
                   id="edit-observacao"
                   value={registroSelecionado.observacao || ""}
                   onChange={(e) => setRegistroSelecionado({ ...registroSelecionado, observacao: e.target.value })}
+                  className="col-span-3"
                 />
               </div>
             </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogoEditar(false)}>
-              Cancelar
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline">Cancelar</Button>
+              </DialogClose>
+              <Button onClick={atualizarRegistro} disabled={carregando}>
+                {carregando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Salvar Alterações"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      {/* Diálogo para Importar CSV */}
+      <Dialog
+        open={dialogoImportar}
+        onOpenChange={(isOpen) => {
+          setDialogoImportar(isOpen)
+          if (!isOpen) setArquivoCsv(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-[525px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg sm:text-xl font-semibold">Importar Registros via CSV</DialogTitle>
+            <DialogDescription className="text-sm sm:text-base text-muted-foreground">
+              Selecione um arquivo CSV (.csv) para importar. Certifique-se que as colunas correspondem ao modelo. As
+              datas devem estar no formato dd/MM/yyyy ou yyyy-MM-dd.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Input
+              id="csvFile"
+              type="file"
+              accept=".csv"
+              onChange={(e) => setArquivoCsv(e.target.files ? e.target.files[0] : null)}
+              className="col-span-full"
+            />
+            <Button onClick={exportarModeloExcel} variant="link" className="mt-1 p-0 h-auto justify-start text-sm">
+              <Download className="mr-1 h-3 w-3" />
+              Baixar modelo de importação (Excel)
             </Button>
-            <Button onClick={atualizarRegistro} disabled={carregando}>
-              {carregando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Salvar"}
+            <Alert variant="default" className="mt-2">
+              <FileSpreadsheet className="h-4 w-4" />
+              <AlertTitle className="text-sm sm:text-base font-semibold">Colunas Esperadas no CSV:</AlertTitle>
+              <AlertDescription className="text-xs sm:text-sm">
+                Frota, Local, Tipo Preventiva, Data Programada, Data Realizada (opcional), Situação, Horário Agendado,
+                Observação (opcional).
+              </AlertDescription>
+            </Alert>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" onClick={() => setArquivoCsv(null)}>
+                Cancelar
+              </Button>
+            </DialogClose>
+            <Button onClick={handleProcessarCsvImport} disabled={!arquivoCsv || carregando}>
+              {carregando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+              Importar Arquivo
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Dialog para importar dados - ATUALIZADO COM MULTI-FORMATO */}
-      <Dialog open={dialogoImportar} onOpenChange={setDialogoImportar}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>Importar Dados de Manutenção - Sistema Avançado</DialogTitle>
-            <DialogDescription>
-              Use o extrator multi-formato para importar dados de Excel, PDF ou imagens
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
-            <MultiFormatExtractor
-              onDataExtracted={async (data) => {
-                try {
-                  // Converter dados extraídos para o formato esperado
-                  const registrosParaImportar = data.map((item) => {
-                    // Garantir que o horário esteja no formato correto (HH:MM)
-                    let horario = item.horario.trim()
-
-                    // Validar formato de horário
-                    if (!/^([0-1]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/.test(horario)) {
-                      // Se não for um horário válido, usar um valor padrão
-                      horario = "08:00"
-                    } else {
-                      // Se tiver segundos, remover
-                      horario = horario.replace(/:\d{2}$/, "")
-
-                      // Se o horário tiver apenas um dígito na hora, adicionar zero à esquerda
-                      if (/^[0-9]:[0-5][0-9]$/.test(horario)) {
-                        horario = `0${horario}`
-                      }
-                    }
-
-                    return {
-                      frota: item.frota,
-                      local: "LAVADOR",
-                      tipo_preventiva: "lavagem_lubrificacao",
-                      data_programada: format(new Date(), "yyyy-MM-dd"),
-                      situacao: "PENDENTE" as const,
-                      horario_agendado: horario,
-                      observacao: "",
-                    }
-                  })
-
-                  // Usar a função existente de importação
-                  await importarRegistros(registrosParaImportar)
-                  setDialogoImportar(false)
-
-                  toast({
-                    title: "Importação concluída",
-                    description: `${registrosParaImportar.length} registros importados com sucesso!`,
-                  })
-                } catch (error) {
-                  console.error("Erro ao importar:", error)
-                  toast({
-                    title: "Erro",
-                    description: "Erro ao importar os dados extraídos",
-                    variant: "destructive",
-                  })
-                }
-              }}
-              // Configurações específicas para o contexto
-              defaultOptions={{
-                removeEmptyRows: true,
-                trimWhitespace: true,
-                convertToUppercase: false,
-                validateFormat: true,
-                detectDuplicates: true,
-                sortByTime: true,
-                filterRefeicao: true,
-              }}
-              // Perfil específico para manutenção
-              defaultProfile="agendamento-frota"
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
-      <UltraAdvancedAIExtractor />
     </div>
   )
 }
-
-// Exportações
 export default WashingLubricationControl

@@ -27,7 +27,6 @@ import { PendenciaSection } from "@/components/pendencia-section"
 import { PendenciasRecentes } from "@/components/pendencias-recentes"
 import { PendenciasLiberadas } from "@/components/pendencias-liberadas"
 import { DashboardCharts } from "@/components/dashboard-charts"
-import { WashingLubricationControl } from "@/components/washing-lubrication-control"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Accordion } from "@/components/ui/accordion"
@@ -56,6 +55,12 @@ import { DeleteAllPendenciasModal } from "@/components/delete-all-pendencias-mod
 // Create context for pendências data
 import React from "react"
 import { format } from "date-fns"
+
+// Adicionar a importação do componente FuturisticEquipmentControl:
+import { FuturisticEquipmentControl } from "@/components/futuristic-equipment-control"
+
+// Substituir a importação anterior por:
+import { CollapsibleEquipmentControl } from "@/components/collapsible-equipment-control"
 
 // To this:
 interface PendenciaItem {
@@ -99,6 +104,11 @@ interface Vehicle {
   motorista?: string
   observacoes?: string
 }
+
+// Remove the import
+// Remove import { WashingLubricationControl } from "@/components/washing-lubrication-control"
+// Adicionar a importação correta:
+import { WashingLubricationControl } from "@/components/washing-lubrication-control-updated"
 
 export default function TrocaDeTurno() {
   const { toast } = useToast()
@@ -696,6 +706,8 @@ export default function TrocaDeTurno() {
         return (
           <>
             <div className="h-6"></div>
+
+            {/* Seção de Programação do Turno */}
             <Card className="bg-slate-900/50 border-slate-700/50 backdrop-blur-sm futuristic-card">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -780,6 +792,11 @@ export default function TrocaDeTurno() {
                 </div>
               </div>
             </Card>
+
+            {/* Seção de Controle de Equipamentos - Barra Recolhível */}
+            <div className="mt-6">
+              <CollapsibleEquipmentControl onNavigateToFull={() => setActiveTab("equipamentos")} />
+            </div>
           </>
         )
       case "pendencias":
@@ -1127,7 +1144,11 @@ export default function TrocaDeTurno() {
           </Card>
         )
       case "lavagem":
-        return <WashingLubricationControl importedData={extractedSchedule} />
+        return (
+          <div className="space-y-6">
+            <WashingLubricationControl importedData={extractedSchedule} />
+          </div>
+        )
       case "relatorios":
         return (
           <Card className="bg-slate-900/50 border-slate-700/50 backdrop-blur-sm futuristic-card">
@@ -1180,6 +1201,13 @@ export default function TrocaDeTurno() {
               </div>
             </CardContent>
           </Card>
+        )
+      case "equipamentos":
+        return (
+          <>
+            <div className="h-6"></div>
+            <FuturisticEquipmentControl />
+          </>
         )
       default:
         return (
@@ -1256,10 +1284,7 @@ export default function TrocaDeTurno() {
 
         <div className="relative">
           <ParticleBackground />
-          <div className="relative z-10 futuristic-grid">
-            {renderContent()}
-            // Remove the component
-          </div>
+          <div className="relative z-10 futuristic-grid">{renderContent()}</div>
         </div>
 
         {/* Report Modal */}

@@ -17,6 +17,7 @@ import {
   Moon,
   Sun,
   MapPin,
+  Cpu,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -44,6 +45,7 @@ export function EnhancedSidebar({ activeItem, onItemClick, theme, toggleTheme }:
     { id: "lavagem", label: "Lavagem e Lubrificação", icon: Activity },
     { id: "relatorios", label: "Relatórios", icon: FileText },
     { id: "equipamentos-localizacao", label: "Equipamentos Localização", icon: MapPin },
+    { id: "equipamentos", label: "Controle Equipamentos", icon: Cpu },
   ]
 
   return (
