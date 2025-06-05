@@ -23,6 +23,7 @@ import {
   Database,
   Zap,
   X,
+  CalendarClock,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -137,6 +138,12 @@ export function OrganizedSidebar({ user, isOpen = false, onToggle }: OrganizedSi
           href: "/dashboard/programacao",
           label: "Programação do Turno",
           icon: Calendar,
+          requiredRole: "viewer",
+        },
+        {
+          href: "/programacao-turno",
+          label: "Programação do Turno",
+          icon: CalendarClock,
           requiredRole: "viewer",
         },
       ].filter((item) => hasPermission(item.requiredRole)),

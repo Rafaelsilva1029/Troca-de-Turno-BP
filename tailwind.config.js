@@ -2,11 +2,13 @@
 module.exports = {
   darkMode: ["class"],
   content: [
-    "./pages/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-    "./app/**/*.{ts,tsx}",
-    "./src/**/*.{ts,tsx}",
-    "*.{js,ts,jsx,tsx,mdx}",
+    "./pages/**/*.{js,ts,jsx,tsx,mdx}", // If you have a pages directory
+    "./components/**/*.{js,ts,jsx,tsx,mdx}", // Global components
+    "./app/**/*.{js,ts,jsx,tsx,mdx}", // This covers the new module
+    "./src/**/*.{js,ts,jsx,tsx,mdx}", // If you use a src directory
+    "*.{js,ts,jsx,tsx,mdx}", // For any root level files if necessary
+    // Explicitly adding for clarity, though covered by ./app/**
+    "./app/programacao-turno/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     container: {
@@ -51,6 +53,11 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Futuristic Agro Colors (examples, can be expanded)
+        "neon-green": "#39FF14",
+        "neon-cyan": "#00CFFF",
+        "dark-blue-900": "#0A192F",
+        "dark-blue-800": "#102A43",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -59,12 +66,12 @@ module.exports = {
       },
       keyframes: {
         "accordion-down": {
-          from: { height: 0 },
+          from: { height: "0" }, // Ensure 0 is a string if it causes issues
           to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
           from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: 0 },
+          to: { height: "0" }, // Ensure 0 is a string
         },
         "spin-slow": {
           "0%": { transform: "rotate(0deg)" },
@@ -76,17 +83,26 @@ module.exports = {
         },
         "pulse-glow": {
           "0%, 100%": {
-            opacity: 1,
-            boxShadow: "0 0 0 0 rgba(34, 197, 94, 0.4)",
+            opacity: "1",
+            boxShadow: "0 0 0 0 rgba(52, 211, 153, 0.4)", // Using a green tone for pulse
           },
           "50%": {
-            opacity: 0.8,
-            boxShadow: "0 0 0 10px rgba(34, 197, 94, 0)",
+            opacity: "0.8",
+            boxShadow: "0 0 0 10px rgba(52, 211, 153, 0)",
           },
         },
         float: {
           "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-10px)" },
+          "50%": { transform: "translateY(-8px)" }, // Reduced float amount
+        },
+        fadeIn: { from: { opacity: "0" }, to: { opacity: "1" } },
+        slideInFromLeft: {
+          from: { transform: "translateX(-20px)", opacity: "0" },
+          to: { transform: "translateX(0)", opacity: "1" },
+        },
+        slideInFromBottom: {
+          from: { transform: "translateY(20px)", opacity: "0" },
+          to: { transform: "translateY(0)", opacity: "1" },
         },
       },
       animation: {
@@ -94,8 +110,11 @@ module.exports = {
         "accordion-up": "accordion-up 0.2s ease-out",
         "spin-slow": "spin-slow 20s linear infinite",
         shimmer: "shimmer 2s infinite",
-        "pulse-glow": "pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        float: "float 3s ease-in-out infinite",
+        "pulse-glow": "pulse-glow 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+        float: "float 4s ease-in-out infinite",
+        fadeIn: "fadeIn 0.5s ease-out forwards",
+        slideInFromLeft: "slideInFromLeft 0.5s ease-out forwards",
+        slideInFromBottom: "slideInFromBottom 0.5s ease-out forwards",
       },
     },
   },
