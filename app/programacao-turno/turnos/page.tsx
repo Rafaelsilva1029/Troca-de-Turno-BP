@@ -1,6 +1,6 @@
 "use client"
-import { useState, useEffect } from "react"
-import { CalendarDays, PlusCircle, Filter, List, Download } from "lucide-react"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { CalendarDays, PlusCircle, Filter, List, Download, Maximize, Minimize } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -15,8 +15,32 @@ import { useForm, Controller, type SubmitHandler } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 
+import { Calendar, dateFnsLocalizer, Views, type Event as CalendarEvent } from "react-big-calendar"
+import format from "date-fns/format"
+import parse from "date-fns/parse"
+import startOfWeek from "date-fns/startOfWeek"
+import getDay from "date-fns/getDay"
+import enUS from "date-fns/locale/en-US" // Or your preferred locale
+import ptBR from "date-fns/locale/pt-BR"
+
+// Required for react-big-calendar
+// import 'react-big-calendar/lib/css/react-big-calendar.css' // We are styling this in globals.css
+
 // ISR revalidation
 export const revalidate = 10
+
+const locales = {
+  "pt-BR": ptBR,
+  "en-US": enUS,
+}
+
+const localizer = dateFnsLocalizer({
+  format,
+  parse,
+  startOfWeek: (date) => startOfWeek(date, { weekStartsOn: 1 }), // Monday
+  getDay,
+  locales,
+})
 
 const shiftFormSchema = z.object({
   employeeName: z.string().min(3, "Nome do funcionário é obrigatório"),
@@ -40,14 +64,21 @@ const combineDateTime = (dateStr: string, timeStr: string): Date => {
   return date
 }
 
+interface ShiftCalendarEvent extends CalendarEvent {
+  resource?: Shift // Store original shift data
+}
+
 export default function TurnosPage() {
   const [shifts, setShifts] = useState<Shift[]>(mockShifts)
   const [filteredShifts, setFilteredShifts] = useState<Shift[]>(mockShifts)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedWorkFront, setSelectedWorkFront] = useState<WorkFront | "all">("all")
-  const [viewMode, setViewMode] = useState<"table" | "calendar">("table") // 'calendar' view is a placeholder
+  const [viewMode, setViewMode] = useState<"calendar" | "table">("calendar")
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingShift, setEditingShift] = useState<Shift | null>(null)
+  const [calendarView, setCalendarView] = useState<keyof typeof Views>(Views.MONTH)
+  const [calendarDate, setCalendarDate] = useState(new Date())
+  const [isCalendarFullScreen, setIsCalendarFullScreen] = useState(false)
 
   const {
     control,
@@ -80,30 +111,44 @@ export default function TurnosPage() {
     setFilteredShifts(result)
   }, [searchTerm, selectedWorkFront, shifts])
 
+  const calendarEvents: ShiftCalendarEvent[] = useMemo(() => {
+    return filteredShifts.map((shift) => ({
+      title: `${shift.employeeName} (${shift.workFront})`,
+      start: shift.startTime,
+      end: shift.endTime,
+      resource: shift, // Store original shift data
+    }))
+  }, [filteredShifts])
+
   const openModalForEdit = (shift: Shift) => {
     setEditingShift(shift)
     reset({
       employeeName: shift.employeeName,
       workFront: shift.workFront,
-      startTime: shift.startTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
-      startDate: shift.startTime.toISOString().split("T")[0],
-      endTime: shift.endTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
-      endDate: shift.endTime.toISOString().split("T")[0],
+      startTime: format(shift.startTime, "HH:mm"),
+      startDate: format(shift.startTime, "yyyy-MM-dd"),
+      endTime: format(shift.endTime, "HH:mm"),
+      endDate: format(shift.endTime, "yyyy-MM-dd"),
       observations: shift.observations || "",
       status: shift.status,
     })
     setIsModalOpen(true)
   }
 
-  const openModalForNew = () => {
+  const openModalForNew = (slotInfo?: { start: Date; end: Date }) => {
     setEditingShift(null)
+    const defaultStartDate = slotInfo?.start ? format(slotInfo.start, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd")
+    const defaultStartTime = slotInfo?.start ? format(slotInfo.start, "HH:mm") : "07:00"
+    const defaultEndDate = slotInfo?.end ? format(slotInfo.end, "yyyy-MM-dd") : defaultStartDate
+    const defaultEndTime = slotInfo?.end ? format(slotInfo.end, "HH:mm") : "16:00"
+
     reset({
       employeeName: "",
       workFront: undefined,
-      startTime: "07:00",
-      startDate: new Date().toISOString().split("T")[0],
-      endTime: "16:00",
-      endDate: new Date().toISOString().split("T")[0],
+      startTime: defaultStartTime,
+      startDate: defaultStartDate,
+      endTime: defaultEndTime,
+      endDate: defaultEndDate,
       observations: "",
       status: "Planejado",
     })
@@ -153,69 +198,140 @@ export default function TurnosPage() {
     document.body.removeChild(link)
   }
 
+  const handleSelectEvent = useCallback(
+    (event: ShiftCalendarEvent) => {
+      if (event.resource) {
+        openModalForEdit(event.resource)
+      }
+    },
+    [reset],
+  )
+
+  const handleSelectSlot = useCallback(
+    (slotInfo: { start: Date; end: Date; action: string }) => {
+      // Only open modal if action is 'click' or 'doubleClick' on a slot, not 'select' (drag)
+      if (slotInfo.action === "click" || slotInfo.action === "doubleClick") {
+        openModalForNew(slotInfo)
+      }
+    },
+    [reset],
+  )
+
+  const messages = {
+    allDay: "Dia Inteiro",
+    previous: "Anterior",
+    next: "Próximo",
+    today: "Hoje",
+    month: "Mês",
+    week: "Semana",
+    day: "Dia",
+    agenda: "Agenda",
+    date: "Data",
+    time: "Hora",
+    event: "Evento",
+    noEventsInRange: "Não há eventos neste período.",
+    showMore: (total: number) => `+ Ver mais (${total})`,
+  }
+
+  const eventStyleGetter = (event: ShiftCalendarEvent, start: Date, end: Date, isSelected: boolean) => {
+    const newStyle: { backgroundColor?: string; borderColor?: string; color?: string; opacity?: number } = {
+      backgroundColor: "#0ea5e9", // sky-500
+      borderColor: "#0284c7", // sky-600
+      color: "white",
+      opacity: 0.9,
+    }
+
+    if (event.resource?.status === "Em Andamento") {
+      newStyle.backgroundColor = "#22c55e" // green-500
+      newStyle.borderColor = "#16a34a" // green-600
+    } else if (event.resource?.status === "Concluído") {
+      newStyle.backgroundColor = "#64748b" // slate-500
+      newStyle.borderColor = "#475569" // slate-600
+      newStyle.opacity = 0.7
+    } else if (event.resource?.status === "Cancelado") {
+      newStyle.backgroundColor = "#ef4444" // red-500
+      newStyle.borderColor = "#dc2626" // red-600
+      newStyle.opacity = 0.8
+    }
+
+    if (isSelected) {
+      newStyle.backgroundColor = "#84cc16" // lime-500
+      newStyle.borderColor = "#65a30d" // lime-600
+    }
+    return {
+      style: newStyle,
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <h1 className="text-3xl font-bold text-slate-100">Gestão de Turnos</h1>
-        <div className="flex gap-2">
-          <Button onClick={handleExportCSV} variant="outline" className="border-slate-600 hover:bg-slate-700/50">
-            <Download className="mr-2 h-4 w-4" /> Exportar CSV
-          </Button>
-          <Button
-            onClick={openModalForNew}
-            className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
-          >
-            <PlusCircle className="mr-2 h-4 w-4" /> Novo Turno
-          </Button>
-        </div>
-      </div>
-
-      <FuturisticCard title="Filtros e Visualização" icon={Filter} iconColorClass="text-slate-300">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-          <Input
-            placeholder="Buscar por funcionário..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="bg-slate-700/50 border-slate-600 placeholder:text-slate-400 text-slate-100"
-          />
-          <Select value={selectedWorkFront} onValueChange={(value) => setSelectedWorkFront(value as WorkFront | "all")}>
-            <SelectTrigger className="bg-slate-700/50 border-slate-600 text-slate-100">
-              <SelectValue placeholder="Filtrar por Frente de Trabalho" />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-800 border-slate-700 text-slate-100">
-              <SelectItem value="all" className="hover:bg-slate-700">
-                Todas as Frentes
-              </SelectItem>
-              {workFronts.map((wf) => (
-                <SelectItem key={wf} value={wf} className="hover:bg-slate-700">
-                  {wf}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === "table" ? "secondary" : "outline"}
-              onClick={() => setViewMode("table")}
-              className="w-full border-slate-600 hover:bg-slate-700/50 data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300"
-            >
-              <List className="mr-2 h-4 w-4" /> Tabela
-            </Button>
-            <Button
-              variant={viewMode === "calendar" ? "secondary" : "outline"}
-              onClick={() => setViewMode("calendar")}
-              className="w-full border-slate-600 hover:bg-slate-700/50 data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300"
-              disabled
-            >
-              {" "}
-              {/* Calendar disabled for now */}
-              <CalendarDays className="mr-2 h-4 w-4" /> Calendário
-            </Button>
+    <div
+      className={`space-y-6 ${isCalendarFullScreen ? "fixed inset-0 z-[100] bg-slate-900 p-4 overflow-y-auto" : ""}`}
+    >
+      {!isCalendarFullScreen && (
+        <>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 className="text-3xl font-bold text-slate-100">Gestão de Turnos</h1>
+            <div className="flex gap-2">
+              <Button onClick={handleExportCSV} variant="outline" className="border-slate-600 hover:bg-slate-700/50">
+                <Download className="mr-2 h-4 w-4" /> Exportar CSV
+              </Button>
+              <Button
+                onClick={() => openModalForNew()}
+                className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white"
+              >
+                <PlusCircle className="mr-2 h-4 w-4" /> Novo Turno
+              </Button>
+            </div>
           </div>
-        </div>
-      </FuturisticCard>
 
-      {viewMode === "table" && (
+          <FuturisticCard title="Filtros e Visualização" icon={Filter} iconColorClass="text-slate-300">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <Input
+                placeholder="Buscar por funcionário..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="bg-slate-700/50 border-slate-600 placeholder:text-slate-400 text-slate-100"
+              />
+              <Select
+                value={selectedWorkFront}
+                onValueChange={(value) => setSelectedWorkFront(value as WorkFront | "all")}
+              >
+                <SelectTrigger className="bg-slate-700/50 border-slate-600 text-slate-100">
+                  <SelectValue placeholder="Filtrar por Frente de Trabalho" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-800 border-slate-700 text-slate-100">
+                  <SelectItem value="all" className="hover:bg-slate-700">
+                    Todas as Frentes
+                  </SelectItem>
+                  {workFronts.map((wf) => (
+                    <SelectItem key={wf} value={wf} className="hover:bg-slate-700">
+                      {wf}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-2">
+                <Button
+                  variant={viewMode === "table" ? "secondary" : "outline"}
+                  onClick={() => setViewMode("table")}
+                  className="w-full border-slate-600 hover:bg-slate-700/50 data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300"
+                >
+                  <List className="mr-2 h-4 w-4" /> Tabela
+                </Button>
+                <Button
+                  variant={viewMode === "calendar" ? "secondary" : "outline"}
+                  onClick={() => setViewMode("calendar")}
+                  className="w-full border-slate-600 hover:bg-slate-700/50 data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300"
+                >
+                  <CalendarDays className="mr-2 h-4 w-4" /> Calendário
+                </Button>
+              </div>
+            </div>
+          </FuturisticCard>
+        </>
+      )}
+
+      {viewMode === "table" && !isCalendarFullScreen && (
         <FuturisticCard title="Lista de Turnos" icon={List} iconColorClass="text-slate-300">
           <div className="overflow-x-auto">
             <Table>
@@ -278,11 +394,78 @@ export default function TurnosPage() {
         </FuturisticCard>
       )}
       {viewMode === "calendar" && (
-        <FuturisticCard title="Calendário de Turnos" icon={CalendarDays} iconColorClass="text-slate-300">
-          <p className="text-slate-400 text-center py-10">
-            Visualização de calendário interativo será implementada aqui.
-          </p>
-          {/* Placeholder for react-big-calendar or similar */}
+        <FuturisticCard
+          title="Calendário de Turnos"
+          icon={CalendarDays}
+          iconColorClass="text-slate-300"
+          headerActions={
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsCalendarFullScreen(!isCalendarFullScreen)}
+              className="text-slate-400 hover:text-cyan-400"
+              title={isCalendarFullScreen ? "Minimizar Calendário" : "Maximizar Calendário"}
+            >
+              {isCalendarFullScreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+            </Button>
+          }
+        >
+          <div className="calendar-container">
+            {" "}
+            {/* Added container for height control */}
+            <Calendar
+              localizer={localizer}
+              events={calendarEvents}
+              startAccessor="start"
+              endAccessor="end"
+              style={{ height: "100%" }} // Ensure calendar fills container
+              className="rbc-calendar" // Apply custom class for Tailwind styling
+              view={calendarView}
+              views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+              onView={(view) => setCalendarView(view as keyof typeof Views)}
+              date={calendarDate}
+              onNavigate={(date) => setCalendarDate(date)}
+              onSelectEvent={handleSelectEvent}
+              onSelectSlot={handleSelectSlot}
+              selectable // Allows selecting slots
+              messages={messages}
+              culture="pt-BR"
+              eventPropGetter={eventStyleGetter}
+              popup // Enables the overlay for "show more" events
+              components={{
+                toolbar: (toolbarProps) => {
+                  return (
+                    <div className="rbc-toolbar">
+                      <span className="rbc-btn-group">
+                        <button type="button" onClick={() => toolbarProps.onNavigate("TODAY")}>
+                          Hoje
+                        </button>
+                        <button type="button" onClick={() => toolbarProps.onNavigate("PREV")}>
+                          Anterior
+                        </button>
+                        <button type="button" onClick={() => toolbarProps.onNavigate("NEXT")}>
+                          Próximo
+                        </button>
+                      </span>
+                      <span className="rbc-toolbar-label">{toolbarProps.label}</span>
+                      <span className="rbc-btn-group">
+                        {toolbarProps.views.map((viewName) => (
+                          <button
+                            key={viewName}
+                            type="button"
+                            className={toolbarProps.view === viewName ? "rbc-active" : ""}
+                            onClick={() => toolbarProps.onView(viewName as any)}
+                          >
+                            {(messages as any)[viewName.toLowerCase()] || viewName}
+                          </button>
+                        ))}
+                      </span>
+                    </div>
+                  )
+                },
+              }}
+            />
+          </div>
         </FuturisticCard>
       )}
 
@@ -311,7 +494,7 @@ export default function TurnosPage() {
                 name="workFront"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <SelectTrigger id="workFront" className="bg-slate-700/50 border-slate-600 mt-1">
                       <SelectValue placeholder="Selecione a frente" />
                     </SelectTrigger>
@@ -387,7 +570,7 @@ export default function TurnosPage() {
                 name="status"
                 control={control}
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <SelectTrigger id="status" className="bg-slate-700/50 border-slate-600 mt-1">
                       <SelectValue placeholder="Selecione o status" />
                     </SelectTrigger>

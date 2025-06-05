@@ -44,6 +44,19 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Calendar colors */
+    --rbc-border-color: theme("colors.slate.700");
+    --rbc-header-bg: theme("colors.slate.800");
+    --rbc-toolbar-bg: theme("colors.slate.900");
+    --rbc-btn-bg: theme("colors.slate.700");
+    --rbc-active-bg: theme("colors.cyan.600");
+    --rbc-text-color: theme("colors.slate.300");
+    --rbc-off-range-bg: theme("colors.slate.800 / 0.3");
+    --rbc-today-bg: theme("colors.cyan.500 / 0.1");
+    --rbc-event-bg: theme("colors.sky.600 / 0.8");
+    --rbc-event-selected-bg: theme("colors.green.500 / 0.8");
+    --rbc-link-color: theme("colors.cyan.400");
   }
 
   .dark {
@@ -66,6 +79,19 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
+
+    /* Calendar colors */
+    --rbc-border-color: theme("colors.slate.700");
+    --rbc-header-bg: theme("colors.slate.800");
+    --rbc-toolbar-bg: theme("colors.slate.900");
+    --rbc-btn-bg: theme("colors.slate.700");
+    --rbc-active-bg: theme("colors.cyan.600");
+    --rbc-text-color: theme("colors.slate.300");
+    --rbc-off-range-bg: theme("colors.slate.800 / 0.3");
+    --rbc-today-bg: theme("colors.cyan.500 / 0.1");
+    --rbc-event-bg: theme("colors.sky.600 / 0.8");
+    --rbc-event-selected-bg: theme("colors.green.500 / 0.8");
+    --rbc-link-color: theme("colors.cyan.400");
   }
 }
 
@@ -473,4 +499,210 @@
   .nav-item:hover {
     background-color: rgba(30, 41, 59, 0.5);
   }
+}
+
+/* Styles for react-big-calendar */
+.rbc-calendar {
+  @apply bg-slate-800/50 border border-slate-700 rounded-lg text-slate-300;
+  min-height: 700px; /* Ensure calendar has enough height */
+}
+
+.rbc-toolbar {
+  @apply mb-4 flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-900/70 border-b border-slate-700 rounded-t-lg;
+}
+
+.rbc-toolbar .rbc-btn-group button {
+  @apply px-3 py-1.5 text-sm font-medium text-slate-300 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600 transition-colors;
+}
+.rbc-toolbar .rbc-btn-group button:first-child {
+  @apply rounded-l-md;
+}
+.rbc-toolbar .rbc-btn-group button:last-child {
+  @apply rounded-r-md;
+}
+.rbc-toolbar .rbc-btn-group button.rbc-active {
+  @apply bg-cyan-600/70 text-white border-cyan-500;
+}
+
+.rbc-toolbar-label {
+  @apply text-xl font-semibold text-cyan-400 flex-grow text-center;
+}
+
+.rbc-header {
+  @apply p-2 text-center font-medium text-slate-400 border-b border-r border-slate-700;
+}
+.rbc-header:last-child {
+  @apply border-r-0;
+}
+
+.rbc-day-bg {
+  @apply border-r border-slate-700/50;
+}
+.rbc-day-bg:last-child {
+  @apply border-r-0;
+}
+
+.rbc-month-row {
+  @apply border-b border-slate-700/50;
+}
+.rbc-month-row:last-child {
+  @apply border-b-0;
+}
+
+.rbc-off-range-bg {
+  @apply bg-slate-800/30; /* Darker for off-range days */
+}
+
+.rbc-today {
+  @apply bg-cyan-500/10; /* Highlight for today */
+}
+
+.rbc-event {
+  @apply p-1.5 text-xs rounded-md bg-sky-600/80 border border-sky-500 text-white transition-all duration-200 ease-in-out;
+  cursor: pointer;
+}
+.rbc-event:hover {
+  @apply bg-sky-500/90 shadow-lg shadow-sky-500/30;
+}
+
+.rbc-event.rbc-selected {
+  @apply bg-green-500/80 border-green-400;
+}
+
+.rbc-addons-dnd .rbc-addons-dnd-resizable-month-event {
+  position: relative;
+}
+.rbc-addons-dnd .rbc-addons-dnd-resize-month-event-anchor:first-child {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+}
+.rbc-addons-dnd .rbc-addons-dnd-resize-month-event-anchor:last-child {
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+}
+.rbc-addons-dnd .rbc-addons-dnd-resize-month-event-anchor {
+  position: absolute;
+  z-index: 4; /* Ensure it's above other elements */
+  cursor: ew-resize;
+}
+
+.rbc-slot-selecting .rbc-event {
+  @apply bg-yellow-500/80 border-yellow-400 cursor-grabbing;
+  pointer-events: none; /* Prevent interaction while selecting */
+}
+
+.rbc-event-label {
+  @apply font-semibold;
+}
+.rbc-event-content {
+  @apply text-xs;
+}
+
+.rbc-show-more {
+  @apply text-cyan-400 hover:text-cyan-300 text-xs mt-1;
+}
+
+.rbc-time-view .rbc-header,
+.rbc-agenda-view .rbc-header {
+  @apply border-b-0; /* Remove bottom border for time/agenda headers */
+}
+
+.rbc-time-header-content > .rbc-row.rbc-row-resource {
+  @apply border-b border-slate-700;
+}
+
+.rbc-time-slot {
+  @apply border-t border-slate-700/50;
+}
+
+.rbc-time-gutter.rbc-time-column-header,
+.rbc-timeslot-group {
+  @apply border-b border-slate-700;
+}
+
+.rbc-current-time-indicator {
+  @apply bg-red-500 h-0.5; /* Style for current time line */
+}
+
+/* Ensure calendar content area has a background */
+.rbc-month-view,
+.rbc-time-view,
+.rbc-agenda-view {
+  @apply bg-slate-800/30;
+}
+
+/* Specific styling for agenda view */
+.rbc-agenda-view table.rbc-agenda-table {
+  @apply border border-slate-700 rounded-md;
+}
+.rbc-agenda-view table.rbc-agenda-table thead tr th {
+  @apply bg-slate-700/50 text-slate-300 p-2 border-b border-slate-600;
+}
+.rbc-agenda-view table.rbc-agenda-table tbody tr td {
+  @apply p-2 border-b border-slate-700/50;
+}
+.rbc-agenda-view table.rbc-agenda-table tbody tr:last-child td {
+  @apply border-b-0;
+}
+.rbc-agenda-date-cell,
+.rbc-agenda-time-cell {
+  @apply text-cyan-400;
+}
+.rbc-agenda-event-cell .rbc-event {
+  @apply bg-transparent border-none text-slate-100 p-0;
+}
+
+/* Ensure popover for "show more" events is styled */
+.rbc-overlay {
+  @apply absolute z-50 p-3 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl shadow-black/50;
+  max-width: 300px;
+}
+.rbc-overlay-header {
+  @apply text-cyan-400 text-sm font-semibold border-b border-slate-700 pb-1 mb-2;
+}
+.rbc-overlay .rbc-event {
+  @apply mb-1.5; /* Add some margin between events in overlay */
+}
+
+/* Custom scrollbar for calendar if content overflows */
+.rbc-time-content,
+.rbc-month-view {
+  @apply overflow-auto;
+  &::-webkit-scrollbar {
+    @apply w-2 h-2;
+  }
+  &::-webkit-scrollbar-track {
+    @apply bg-slate-700/50 rounded;
+  }
+  &::-webkit-scrollbar-thumb {
+    @apply bg-cyan-600/70 rounded;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    @apply bg-cyan-500/70;
+  }
+}
+
+/* Fix for toolbar button group spacing on smaller screens */
+@media (max-width: 768px) {
+  .rbc-toolbar {
+    @apply flex-col items-stretch;
+  }
+  .rbc-toolbar .rbc-btn-group {
+    @apply w-full flex;
+  }
+  .rbc-toolbar .rbc-btn-group button {
+    @apply flex-1;
+  }
+  .rbc-toolbar-label {
+    @apply my-2 text-lg;
+  }
+}
+
+.calendar-container {
+  height: calc(100vh - 200px); /* Adjust 200px based on your header/footer/padding */
+  min-height: 600px;
 }
